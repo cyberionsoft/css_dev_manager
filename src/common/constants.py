@@ -96,6 +96,9 @@ BUILD_DIR = Path("build")
 DIST_DIR = Path("dist")
 SPEC_DIR = Path("src") / "specs"
 
+# Default build platforms (Windows-only for faster builds)
+DEFAULT_BUILD_PLATFORMS = ["windows"]
+
 # PyInstaller Configuration
 PYINSTALLER_OPTIONS = {
     "onefile": True,  # Changed to onefile mode for single executable

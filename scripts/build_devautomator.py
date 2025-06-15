@@ -44,7 +44,8 @@ def main():
         '--platforms',
         nargs='+',
         choices=['windows', 'darwin', 'linux'],
-        help='Platforms to build for (default: all)'
+        default=['windows'],
+        help='Platforms to build for (default: windows only)'
     )
     
     parser.add_argument(

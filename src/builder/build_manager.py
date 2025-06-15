@@ -8,7 +8,7 @@ from pathlib import Path
 
 import click
 
-from ..common.constants import BUILD_DIR, DIST_DIR, SUPPORTED_PLATFORMS
+from ..common.constants import BUILD_DIR, DIST_DIR, SUPPORTED_PLATFORMS, DEFAULT_BUILD_PLATFORMS
 from ..common.utils import ensure_directory, safe_remove_directory
 from ..common.version import Version
 from .github_manager import GitHubManager
@@ -59,7 +59,7 @@ class BuildManager:
             Dictionary mapping platform names to build archive paths
         """
         if platforms is None:
-            platforms = list(SUPPORTED_PLATFORMS.keys())
+            platforms = DEFAULT_BUILD_PLATFORMS
 
         logging.info(f"Starting build for version {version}, platforms: {platforms}")
 
@@ -286,7 +286,7 @@ class BuildManager:
     "--platforms",
     "-pl",
     multiple=True,
-    help="Platforms to build for (default: all supported)",
+    help="Platforms to build for (default: windows only)",
 )
 @click.option("--prerelease", is_flag=True, help="Mark as prerelease")
 @click.option("--no-clean", is_flag=True, help="Skip cleaning build directories")
