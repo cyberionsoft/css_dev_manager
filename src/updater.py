@@ -133,9 +133,11 @@ class BaseUpdater:
 
                 # Try multiple naming conventions for compatibility
                 possible_names = [
-                    f"{self.app_name}_v{version_tag}_{platform_key}.zip",  # lowercase: windows
-                    f"{self.app_name}_v{version_tag}_{platform_key.title()}.zip",  # title case: Windows
-                    f"{self.app_name}_v{version_tag}_{platform_key.upper()}.zip",  # uppercase: WINDOWS
+                    f"{self.app_name}_v{version_tag}_{platform_key}.zip",  # DevAutomator_v0.1.2_windows.zip
+                    f"{self.app_name}_v{version_tag}_{platform_key.title()}.zip",  # DevAutomator_v0.1.2_Windows.zip
+                    f"{self.app_name}_v{version_tag}_{platform_key.upper()}.zip",  # DevAutomator_v0.1.2_WINDOWS.zip
+                    f"{self.app_name.lower()}_{version_tag}_{platform_key}.zip",  # devautomator_0.1.2_windows.zip
+                    f"{self.app_name.lower()}_v{version_tag}_{platform_key}.zip",  # devautomator_v0.1.2_windows.zip
                 ]
 
                 for asset in assets:

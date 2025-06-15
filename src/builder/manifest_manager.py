@@ -64,8 +64,8 @@ class ManifestManager:
             },
             "devautomator": {"latest_version": None, "release_notes": "", "builds": {}},
             "devmanager": {
-                "latest_version": "0.1.4",
-                "release_notes": "Fixed fastexcel dependency and console window issues",
+                "latest_version": "0.1.5",
+                "release_notes": "Fixed GUI status visibility, duplicate messages, and added administrative privileges",
                 "builds": {},
             },
         }

@@ -131,7 +131,7 @@ class ProgressDialog(QDialog):
         self.status_label = QLabel("Initializing...")
         self.status_label.setWordWrap(True)
         self.status_label.setMinimumHeight(40)
-        self.status_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 8px; border-radius: 4px; }")
+        self.status_label.setStyleSheet("QLabel { background-color: #f0f0f0; color: #333333; padding: 8px; border-radius: 4px; }")
         layout.addWidget(self.status_label)
 
         # Progress bar
@@ -238,7 +238,7 @@ class NormalModeWindow(QMainWindow):
         self.status_label = QLabel("Initializing...")
         self.status_label.setWordWrap(True)
         self.status_label.setMinimumHeight(30)
-        self.status_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }")
+        self.status_label.setStyleSheet("QLabel { background-color: #f0f0f0; color: #333333; padding: 10px; border-radius: 5px; }")
         status_layout.addWidget(self.status_label)
 
         # Progress bar
@@ -327,7 +327,6 @@ class BuildWorker(QThread):
     def emit_status(self, message: str):
         """Emit status update to GUI."""
         self.status_updated.emit(message)
-        self.log_message.emit(message)
 
     def run(self):
         """Run the build operation with detailed progress reporting."""
@@ -450,7 +449,6 @@ class NormalModeWorker(QThread):
     def emit_status(self, message: str):
         """Emit status update to GUI."""
         self.status_updated.emit(message)
-        self.log_message.emit(message)
 
     def run(self):
         """Run the normal mode operations."""
@@ -640,7 +638,6 @@ def show_normal_mode_window() -> bool:
 
     # Connect signals
     worker.status_updated.connect(window.update_status)
-    worker.log_message.connect(window.add_log)
     worker.progress_updated.connect(window.set_progress)
     worker.finished.connect(window.operation_finished)
 

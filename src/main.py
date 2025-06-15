@@ -8,6 +8,8 @@ This application can be started in two ways:
 
 import argparse
 import logging
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,6 +69,46 @@ except ImportError:
         from token_handler_compatible import CompatibleTokenHandler as TokenHandler
         from updater import DevAutomatorUpdater, DevManagerUpdater
         from installer import FirstRunInstaller, show_install_dialog
+
+
+def is_admin() -> bool:
+    """
+    Check if the current process is running with administrative privileges.
+
+    Returns:
+        True if running as admin, False otherwise
+    """
+    try:
+        if os.name == 'nt':  # Windows
+            import ctypes
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        else:  # Unix-like systems
+            return os.geteuid() == 0
+    except Exception:
+        return False
+
+
+def run_as_admin() -> bool:
+    """
+    Re-run the current script with administrative privileges.
+
+    Returns:
+        True if elevation was attempted, False if failed
+    """
+    try:
+        if os.name == 'nt':  # Windows
+            import ctypes
+            # Re-run with UAC elevation
+            ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, " ".join(sys.argv), None, 1
+            )
+            return True
+        else:  # Unix-like systems
+            subprocess.run(['sudo'] + [sys.executable] + sys.argv)
+            return True
+    except Exception as e:
+        logging.error(f"Failed to elevate privileges: {e}")
+        return False
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -600,7 +642,21 @@ def main() -> int:
     args = parse_arguments()
     setup_logging(args.debug)
 
-    logging.info(f"Starting {APP_NAME} v0.1.0")
+    logging.info(f"Starting {APP_NAME} v{VERSION}")
+
+    # Check for administrative privileges
+    if not is_admin():
+        logging.info("DevManager requires administrative privileges")
+        print(f"{APP_NAME} requires administrative privileges to function properly.")
+        print("Requesting elevation...")
+
+        if run_as_admin():
+            # Successfully requested elevation, exit this instance
+            return 0
+        else:
+            print("Failed to obtain administrative privileges.")
+            print("Please run DevManager as Administrator.")
+            return 1
 
     try:
         # Check for test mode first
