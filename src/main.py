@@ -11,6 +11,14 @@ import logging
 import sys
 from pathlib import Path
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, continue without it
+    pass
+
 # Handle both relative and absolute imports
 try:
     from .common.constants import APP_NAME, CONFIG_DIR, LOG_FILE, LOG_FORMAT, LOG_LEVEL, VERSION
