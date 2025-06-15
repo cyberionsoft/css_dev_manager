@@ -116,93 +116,60 @@ class GitHubClient:
 
     def build_and_release_devmanager(self) -> bool:
         """
-        Build and release DevManager.
+        Build and release DevManager using existing executable or quick build.
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            print("    🚀 Starting DevManager build and release process")
-            logging.info("Starting DevManager build and release process")
+            print("    🚀 Starting DevManager release process")
+            logging.info("Starting DevManager release process")
 
             print("    🔗 Connecting to GitHub repository...")
             # Get repository
             repo = self.github.get_repo(f"{self.config['owner']}/{self.config['repos']['devmanager']}")
             print("    ✅ Repository connection established")
 
-            # Build the application
-            build_path = self._build_devmanager()
+            # Check for existing executable first
+            existing_exe = Path("dist/devmanager.exe")
+            if existing_exe.exists():
+                print(f"    ✅ Found existing executable: {existing_exe}")
+                exe_size = existing_exe.stat().st_size / (1024 * 1024)
+                print(f"    📊 Executable size: {exe_size:.1f} MB")
+
+                # Use existing executable
+                success = self.create_single_executable_release(
+                    app_name="devmanager",
+                    exe_path=str(existing_exe),
+                    version=VERSION
+                )
+
+                if success:
+                    print("    ✅ DevManager released successfully using existing executable!")
+                    return True
+                else:
+                    print("    ⚠️  Release with existing executable failed, trying fresh build...")
+
+            # If no existing executable or release failed, do a quick build
+            print("    🔨 Building DevManager executable...")
+            build_path = self._quick_build_devmanager()
             if not build_path:
                 print("    ❌ Build failed")
                 return False
 
-            print("    📋 Preparing release information...")
-            # Create release
-            release_tag = f"v{VERSION}"
-            release_name = f"DevManager {VERSION}"
-            release_notes = self._generate_release_notes("DevManager", VERSION)
-
-            try:
-                # Check if release already exists
-                release = repo.get_release(release_tag)
-                print(f"    🔄 Release {release_tag} already exists, updating...")
-                logging.info(f"Release {release_tag} already exists, updating...")
-            except GithubException:
-                # Create new release
-                print(f"    🆕 Creating new release: {release_tag}")
-                release = repo.create_git_release(
-                    tag=release_tag,
-                    name=release_name,
-                    message=release_notes,
-                    draft=False,
-                    prerelease=False,
-                )
-                print(f"    ✅ Created new release: {release_tag}")
-                logging.info(f"Created new release: {release_tag}")
-
-            # Upload asset with new naming convention
-            asset_name = f"DevManager_v{VERSION}_{self.platform_info['platform_key']}.zip"
-            print(f"    📤 Uploading asset: {asset_name}")
-
-            # Get file size for progress reporting
-            file_size = build_path.stat().st_size
-            file_size_mb = file_size / (1024 * 1024)
-            print(f"    📊 File size: {file_size_mb:.1f} MB")
-
-            # Remove existing asset if it exists
-            print("    🔍 Checking for existing assets...")
-            existing_assets = list(release.get_assets())
-            for asset in existing_assets:
-                if asset.name == asset_name:
-                    print(f"    🗑️  Removing existing asset: {asset_name}")
-                    asset.delete_asset()
-                    logging.info(f"Removed existing asset: {asset_name}")
-                    break
-            else:
-                print("    ✅ No existing asset found")
-
-            # Upload new asset
-            print(f"    ⬆️  Starting upload to GitHub...")
-            print(f"       Uploading {asset_name} ({file_size_mb:.1f} MB)")
-            print("       This may take a few moments depending on your connection...")
-
-            import time
-            upload_start = time.time()
-
-            release.upload_asset(
-                path=str(build_path),
-                name=asset_name,
-                content_type="application/zip",
+            # Create release with built executable
+            success = self.create_single_executable_release(
+                app_name="devmanager",
+                exe_path=str(build_path),
+                version=VERSION
             )
 
-            upload_time = int(time.time() - upload_start)
-            upload_speed = file_size_mb / max(upload_time, 1)
-            print(f"    ✅ Upload completed in {upload_time}s (avg: {upload_speed:.1f} MB/s)")
-
-            print(f"    ✅ Successfully uploaded {asset_name}")
-            print(f"    🌐 Release URL: {release.html_url}")
-            logging.info(f"Successfully uploaded {asset_name}")
-            return True
+            if success:
+                print("    ✅ DevManager built and released successfully!")
+                return True
+            else:
+                print("    ❌ Release failed")
+                return False
 
         except Exception as e:
             print(f"    ❌ Release failed: {e}")
@@ -211,100 +178,138 @@ class GitHubClient:
 
     def build_and_release_devautomator(self) -> bool:
         """
-        Build and release DevAutomator.
+        Build and release DevAutomator using existing executable or quick build.
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            print("    🚀 Starting DevAutomator build and release process")
-            logging.info("Starting DevAutomator build and release process")
+            print("    🚀 Starting DevAutomator release process")
+            logging.info("Starting DevAutomator release process")
 
             print("    🔗 Connecting to GitHub repository...")
             # Get repository
             repo = self.github.get_repo(f"{self.config['owner']}/{self.config['repos']['devautomator']}")
             print("    ✅ Repository connection established")
 
-            # Build the application
-            build_path = self._build_devautomator()
+            # Check for existing DevAutomator executable
+            devautomator_path = Path("../css_dev_automator")
+            existing_exe = devautomator_path / "dist" / "DevAutomator.exe"
+
+            if existing_exe.exists():
+                print(f"    ✅ Found existing DevAutomator executable: {existing_exe}")
+                exe_size = existing_exe.stat().st_size / (1024 * 1024)
+                print(f"    📊 Executable size: {exe_size:.1f} MB")
+
+                # Use existing executable
+                success = self.create_single_executable_release(
+                    app_name="devautomator",
+                    exe_path=str(existing_exe),
+                    version=VERSION
+                )
+
+                if success:
+                    print("    ✅ DevAutomator released successfully using existing executable!")
+                    return True
+                else:
+                    print("    ⚠️  Release with existing executable failed, trying fresh build...")
+
+            # If no existing executable or release failed, do a quick build
+            print("    🔨 Building DevAutomator executable...")
+            build_path = self._quick_build_devautomator()
             if not build_path:
                 print("    ❌ Build failed")
                 return False
 
-            print("    📋 Preparing release information...")
-            # Create release
-            release_tag = f"v{VERSION}"
-            release_name = f"DevAutomator {VERSION}"
-            release_notes = self._generate_release_notes("DevAutomator", VERSION)
-
-            try:
-                # Check if release already exists
-                release = repo.get_release(release_tag)
-                print(f"    🔄 Release {release_tag} already exists, updating...")
-                logging.info(f"Release {release_tag} already exists, updating...")
-            except GithubException:
-                # Create new release
-                print(f"    🆕 Creating new release: {release_tag}")
-                release = repo.create_git_release(
-                    tag=release_tag,
-                    name=release_name,
-                    message=release_notes,
-                    draft=False,
-                    prerelease=False,
-                )
-                print(f"    ✅ Created new release: {release_tag}")
-                logging.info(f"Created new release: {release_tag}")
-
-            # Upload asset with consistent naming convention
-            asset_name = f"DevAutomator_v{VERSION}_{self.platform_info['platform_key']}.zip"
-            print(f"    📤 Uploading asset: {asset_name}")
-
-            # Get file size for progress reporting
-            file_size = build_path.stat().st_size
-            file_size_mb = file_size / (1024 * 1024)
-            print(f"    📊 File size: {file_size_mb:.1f} MB")
-
-            # Remove existing asset if it exists
-            print("    🔍 Checking for existing assets...")
-            existing_assets = list(release.get_assets())
-            for asset in existing_assets:
-                if asset.name == asset_name:
-                    print(f"    🗑️  Removing existing asset: {asset_name}")
-                    asset.delete_asset()
-                    logging.info(f"Removed existing asset: {asset_name}")
-                    break
-            else:
-                print("    ✅ No existing asset found")
-
-            # Upload new asset
-            print(f"    ⬆️  Starting upload to GitHub...")
-            print(f"       Uploading {asset_name} ({file_size_mb:.1f} MB)")
-            print("       This may take a few moments depending on your connection...")
-
-            import time
-            upload_start = time.time()
-
-            release.upload_asset(
-                path=str(build_path),
-                name=asset_name,
-                content_type="application/zip",
+            # Create release with built executable
+            success = self.create_single_executable_release(
+                app_name="devautomator",
+                exe_path=str(build_path),
+                version=VERSION
             )
 
-            upload_time = int(time.time() - upload_start)
-            upload_speed = file_size_mb / max(upload_time, 1)
-            print(f"    ✅ Upload completed in {upload_time}s (avg: {upload_speed:.1f} MB/s)")
-
-            print(f"    ✅ Successfully uploaded {asset_name}")
-            print(f"    🌐 Release URL: {release.html_url}")
-            logging.info(f"Successfully uploaded {asset_name}")
-            return True
+            if success:
+                print("    ✅ DevAutomator built and released successfully!")
+                return True
+            else:
+                print("    ❌ Release failed")
+                return False
 
         except Exception as e:
             print(f"    ❌ Release failed: {e}")
-            logging.error(
-                f"Error in DevAutomator build and release: {e}", exc_info=True
-            )
+            logging.error(f"Error in DevAutomator build and release: {e}", exc_info=True)
             return False
+
+    def _quick_build_devmanager(self) -> Path | None:
+        """
+        Quick build of DevManager using the existing spec file.
+
+        Returns:
+            Path to built executable or None if failed
+        """
+        try:
+            print("    🔨 Quick building DevManager...")
+            logging.info("Quick building DevManager...")
+
+            # Use existing spec file for faster build
+            spec_file = Path("src/specs/devmanager.spec")
+            if not spec_file.exists():
+                print(f"    ❌ Spec file not found: {spec_file}")
+                return None
+
+            print("    ⚙️  Running PyInstaller with existing spec...")
+            print(f"    📋 Using spec file: {spec_file}")
+
+            # Run PyInstaller with the spec file (much faster)
+            cmd = [
+                "pyinstaller",
+                "--clean",
+                "--noconfirm",
+                str(spec_file),
+            ]
+
+            print("    🔄 Starting PyInstaller process...")
+
+            import time
+            start_time = time.time()
+
+            # Run PyInstaller
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes timeout
+            )
+
+            elapsed_total = int(time.time() - start_time)
+
+            if result.returncode != 0:
+                print(f"    ❌ PyInstaller failed after {elapsed_total}s")
+                print("    📄 Error details:")
+                error_lines = result.stderr.split('\n')[-5:]
+                for line in error_lines:
+                    if line.strip():
+                        print(f"       {line}")
+                logging.error(f"PyInstaller failed: {result.stderr}")
+                return None
+            else:
+                print(f"    ✅ PyInstaller completed successfully in {elapsed_total}s")
+
+            # Check for built executable
+            exe_path = Path("dist/devmanager.exe")
+            if not exe_path.exists():
+                print(f"    ❌ Built executable not found: {exe_path}")
+                return None
+
+            exe_size = exe_path.stat().st_size / (1024 * 1024)
+            print(f"    ✅ Executable built: {exe_size:.1f} MB")
+
+            return exe_path
+
+        except Exception as e:
+            print(f"    ❌ Quick build error: {e}")
+            logging.error(f"Error in quick build: {e}", exc_info=True)
+            return None
 
     def _build_devmanager(self) -> Path | None:
         """
@@ -431,6 +436,80 @@ class GitHubClient:
         except Exception as e:
             print(f"    ❌ Build error: {e}")
             logging.error(f"Error building DevManager: {e}", exc_info=True)
+            return None
+
+    def _quick_build_devautomator(self) -> Path | None:
+        """
+        Quick build of DevAutomator using PyInstaller.
+
+        Returns:
+            Path to built executable or None if failed
+        """
+        try:
+            print("    🔨 Quick building DevAutomator...")
+            logging.info("Quick building DevAutomator...")
+
+            # Path to DevAutomator project
+            devautomator_path = Path("../css_dev_automator")
+            if not devautomator_path.exists():
+                print(f"    ❌ DevAutomator project not found at: {devautomator_path}")
+                return None
+
+            print("    📁 DevAutomator project found")
+
+            # Quick PyInstaller command
+            cmd = [
+                "pyinstaller",
+                "--onefile",
+                "--name", "DevAutomator",
+                "--distpath", "dist",
+                "--clean",
+                "--noconfirm",
+                "main.py",
+            ]
+
+            print("    🔄 Starting PyInstaller process...")
+
+            import time
+            start_time = time.time()
+
+            # Run PyInstaller from DevAutomator directory
+            result = subprocess.run(
+                cmd,
+                cwd=str(devautomator_path),
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes timeout
+            )
+
+            elapsed_total = int(time.time() - start_time)
+
+            if result.returncode != 0:
+                print(f"    ❌ PyInstaller failed after {elapsed_total}s")
+                print("    📄 Error details:")
+                error_lines = result.stderr.split('\n')[-5:]
+                for line in error_lines:
+                    if line.strip():
+                        print(f"       {line}")
+                logging.error(f"PyInstaller failed: {result.stderr}")
+                return None
+            else:
+                print(f"    ✅ PyInstaller completed successfully in {elapsed_total}s")
+
+            # Check for built executable
+            exe_path = devautomator_path / "dist" / "DevAutomator.exe"
+            if not exe_path.exists():
+                print(f"    ❌ Built executable not found: {exe_path}")
+                return None
+
+            exe_size = exe_path.stat().st_size / (1024 * 1024)
+            print(f"    ✅ DevAutomator executable built: {exe_size:.1f} MB")
+
+            return exe_path
+
+        except Exception as e:
+            print(f"    ❌ Quick build error: {e}")
+            logging.error(f"Error in DevAutomator quick build: {e}", exc_info=True)
             return None
 
     def _build_devautomator(self) -> Path | None:

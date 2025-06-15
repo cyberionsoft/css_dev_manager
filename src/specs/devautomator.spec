@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Configuration - these will be set by the build system
 DEVAUTOMATOR_PATH = os.environ.get('DEVAUTOMATOR_PATH', '.')
-VERSION = os.environ.get('BUILD_VERSION', '0.1.1')
+VERSION = os.environ.get('BUILD_VERSION', '0.1.2')
 PLATFORM = os.environ.get('TARGET_PLATFORM', 'windows')
 
 # Convert to Path objects

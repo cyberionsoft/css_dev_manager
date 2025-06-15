@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-VERSION = os.environ.get('BUILD_VERSION', '0.1.1')
+VERSION = os.environ.get('BUILD_VERSION', '0.1.2')
 PLATFORM = os.environ.get('TARGET_PLATFORM', 'windows')
 
 # Paths

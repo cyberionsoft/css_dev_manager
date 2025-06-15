@@ -64,7 +64,7 @@ class ManifestManager:
             },
             "devautomator": {"latest_version": None, "release_notes": "", "builds": {}},
             "devmanager": {
-                "latest_version": "0.1.1",
+                "latest_version": "0.1.2",
                 "release_notes": "Enhanced encryption system for secure token bundling",
                 "builds": {},
             },
