@@ -90,21 +90,21 @@ hiddenimports = [
 
 # Platform-specific settings
 if PLATFORM == 'windows':
-    console = True  # Set to False for windowed apps
+    console = False  # GUI application without console window
     icon = None
     # Look for Windows icon
     icon_path = devautomator_path / 'icon.ico'
     if icon_path.exists():
         icon = str(icon_path)
 elif PLATFORM in ['darwin', 'macos']:
-    console = True
+    console = False
     icon = None
     # Look for macOS icon
     icon_path = devautomator_path / 'icon.icns'
     if icon_path.exists():
         icon = str(icon_path)
 else:  # Linux and others
-    console = True
+    console = False
     icon = None
 
 # Analysis
@@ -127,7 +127,12 @@ a = Analysis(
         'PyQt5',
         'PyQt6',
         'PySide2',
-        'PySide6',
+        'torch',
+        'tensorflow',
+        'sklearn',
+        'jupyter',
+        'IPython',
+        'notebook',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -143,7 +148,6 @@ exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
     name='devautomator',
