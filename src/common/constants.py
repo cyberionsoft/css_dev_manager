@@ -8,7 +8,7 @@ from pathlib import Path
 # Application Information
 APP_NAME = "DevManager"
 DEVAUTOMATOR_NAME = "DevAutomator"
-VERSION = "0.1.5"
+VERSION = "0.1.7"
 
 # GitHub Configuration
 GITHUB_REPO_OWNER = "cyberionsoft"  # Actual GitHub organization

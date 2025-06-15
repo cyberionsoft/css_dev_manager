@@ -801,6 +801,9 @@ class GitHubClient:
                     version=version,
                     platform=platform_name
                 )
+
+                # Log the asset name being created for debugging
+                logging.info(f"Creating asset with name: {asset_name}")
                 zip_path = Path(temp_dir) / asset_name
 
                 if not self._create_single_exe_package(exe_file, zip_path, app_name, version):

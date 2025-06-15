@@ -151,8 +151,11 @@ class BaseUpdater:
 
                 if not download_url:
                     logging.error(f"No asset found for platform: {platform_key}")
+                    logging.error(f"App name: {self.app_name}")
+                    logging.error(f"Version tag: {version_tag}")
                     logging.error(f"Looking for any of: {possible_names}")
                     logging.error(f"Available assets: {available_assets}")
+                    logging.error(f"Release URL: {url}")
                     return None
 
                 # Download the file
