@@ -1,22 +1,22 @@
 {
   "schema_version": "1.0",
-  "last_updated": "2025-06-15T15:00:18.668581+00:00",
+  "last_updated": "2025-06-15T15:23:11.481864+00:00",
   "repository": {
     "owner": "cyberionsoft",
     "name": "css_dev_manager",
     "url": "https://github.com/cyberionsoft/css_dev_manager"
   },
   "devautomator": {
-    "latest_version": "0.1.4",
-    "release_notes": "Fixed fastexcel dependency and console window issues. Enhanced GUI status updates and error handling. Cleaned up build artifacts.",
+    "latest_version": "0.1.5",
+    "release_notes": "Fixed GUI status visibility, duplicate messages, and added administrative privileges. Enhanced DevAutomator compatibility and error handling.",
     "builds": {
       "windows": {
-        "version": "0.1.4",
-        "filename": "devmanager_0.1.4_windows.zip",
-        "size": 62732379,
-        "checksum": "37a4c3890b7220c7c8c23a0bec33fea046a43b714a557a62a08b85fa6f0065d0",
-        "download_url": "https://github.com/cyberionsoft/css_dev_manager/releases/download/v0.1.4/devmanager_0.1.4_windows.zip",
-        "created_at": "2025-06-15T15:00:18.668563+00:00"
+        "version": "0.1.5",
+        "filename": "devmanager_0.1.5_windows.zip",
+        "size": 62734304,
+        "checksum": "3da14bafeafe6b026eb64ea5bbb75e3d901a76eb4e9dd8fba00146dc28510537",
+        "download_url": "https://github.com/cyberionsoft/css_dev_manager/releases/download/v0.1.5/devmanager_0.1.5_windows.zip",
+        "created_at": "2025-06-15T15:23:11.481845+00:00"
       }
     }
   },
