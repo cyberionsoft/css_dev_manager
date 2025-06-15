@@ -6,7 +6,7 @@ This package provides both client-side and developer-side functionality:
 - Developer-side: Build tools for packaging and deploying DevAutomator releases
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __author__ = "CSS Development Team"
 __description__ = (
     "DevManager - Sophisticated installer and auto-updater for DevAutomator"
