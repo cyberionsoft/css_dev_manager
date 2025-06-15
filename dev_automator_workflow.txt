@@ -1,0 +1,207 @@
+The workflow of dev_automator Version 0.1.0 involves GUI interactions, Excel file processing, C# solution analysis, and prompt generation.
+
+Note: The app is completly GUI not Terminal
+So, all the status should be visible in the GUI window, to inform the user about the progress of the operation.
+
+1. Application Startup:
+* Token-Only Startup: dev_automator must only start if a valid token is provided by dev_manager via the command line.
+
+* No Token Behavior: If dev_automator is started without a token (e.g., user double-clicks its executable directly), it must not proceed with its main functionality. Instead, it should attempt to launch dev_manager.exe, (dev_automator will be installed by the dev_manager and both of the exe files will be in the ProgramFiles\DevManagr. ) and then immediately exit itself. This enforces the management hierarchy.
+
+2. GUI Menu and Features (PySide):
+If started correctly with a token, dev_automator will display its main GUI window. The GUI should be implemented using latest PySide. The menu should provide access to the following four features:
+
+* a. Download Excel: A button that, when clicked, triggers the download/copy of an Excel template.
+* b. Browse Excel: A button to open a file dialog for uploading an Excel file, followed by validation.
+* c. Browse Solutions File: A button to open a file dialog for selecting a C# solution (.sln) file, followed by parsing and project/folder setup.
+* d. Generate: A button to trigger the main generation process based on the processed Excel and solution data.
+
+
+The application should be structured logically. A main window class would define the GUI structure and connect UI elements (buttons, etc.) to handler methods. These handler methods would, in turn, call functions in separate modules responsible for the business logic (Excel handling, C# solution parsing, etc.). PySide signals and slots mechanism is crucial for this communication, especially for decoupling long-running backend tasks from the UI to maintain responsiveness. Proper QObject lifetime management, such as setting parents for widgets, should be observed to prevent memory issues.
+
+3. Excel Operations (using Polars):
+
+* a. Download Excel Template:
+* When the "Download Excel" button is clicked, the application must copy the template file located at Templates/Excel/DataTemplate.xlsx (this path should be relative to the dev_automator project's root directory or an assets folder within its installation directory) to the user's system Downloads folder. Standard Python libraries like shutil for file copying and pathlib for path manipulation are suitable here.
+
+* b. Browse and Validate Excel:
+* Clicking "Browse Excel" should open a QFileDialog configured to allow users to select only Excel files (e.g., filter for *.xlsx and *.xls).
+* Upon file selection, the Excel file must be read using polars. 
+* Structure Validation: The structure of the uploaded Excel file must be validated against the expected template:
+* It must contain exactly four columns with headers: "SP Name", "Type", "Module Name", and "Entity Name".
+* The "SP Name" and "Type" columns are expected to contain multiple rows of data.
+* The "Module Name" and "Entity Name" columns should contain data only in the first data row (e.g., if headers are in row 1, data for these two columns is in row 2). Subsequent rows for these columns should ideally be empty or will be ignored beyond the first entry.
+
+* For resting with real data you can use this following excel. "P:\Repositories\css_dev_automator\SampleData.xlsx"
+
+* c. Data Validation and Transformation (Polars):
+* Validate data in "SP Name" and "Type" columns (the prompt implies existing validation logic can be adapted; this should be clarified or specified).
+* For "Module Name" and "Entity Name" columns, which are intended to be C# class names:
+* Remove any leading/trailing whitespace.
+* Remove all internal spaces.
+* Convert the resulting string to PascalCase (e.g., "my feature name" becomes "MyFeatureName"). This can be achieved using Polars string expressions or by applying a custom Python function to the Polars Series using methods like .map_elements().
+
+* d. Data Fetching:
+* After successful validation and transformation, extract the data (lists of SP Names, Types, the single Module Name, and the single Entity Name) and store it. A Polars DataFrame is a suitable structure for holding the tabular data, while the single-value fields can be stored as attributes or simple variables.
+
+4. C# Solution Interaction:
+
+* a. Browse Solution File:
+* Clicking "Browse Solutions File" should open a QFileDialog, filtering for C# Solution files (*.sln).
+
+* b. Parse .sln File and Locate GTI.API Project:
+* Once an .sln file is selected, its content needs to be parsed to identify constituent projects.
+* Fallback .sln Parsing: If pyvcproj is unsuitable or old and no new packages are there, a manual parsing approach for the .sln file will be necessary. .sln files are text-based. Project entries typically follow a pattern like: Project("{PROJECT_TYPE_GUID}") = "ProjectName", "Relative\\Path\\To\\Project.csproj", "{PROJECT_GUID}".25 The script will need to use regular expressions or string manipulation to extract the "ProjectName" and "Relative\Path\To\Project.csproj" for each project.
+* From the extracted list of projects, locate the project named "GTI.API". The full path to this project's directory can be constructed by combining the directory of the selected .sln file with the relative path found in the .sln file.
+
+* c. Extract Connection String from appsettings.json:
+* Navigate to the GTI.API project directory (identified above) and locate the appsettings.json file.
+* The appsettings.json file in.NET projects often contains comments (e.g., using // or /*... */), especially when edited with tools like Visual Studio Code which might treat it as JSON with Comments (jsonc). Standard Python
+json.loads() will fail if comments are present. Therefore, before parsing, the script must attempt to delete all commented lines. This can be done by reading the file line by line and removing lines starting with //, or using more sophisticated regex for block comments.
+* After cleaning, parse the JSON content using Python's json module.
+* Access the ConnectionStrings object within the parsed JSON data, inside the ConnectionStrings there will be one uncommented DefaultConnection which has the working connection string.
+* The user prompt states, "there will be one uncommented connection string." In a comment-stripped JSON, this means identifying the active or intended connection string..NET Core itself has a hierarchical configuration system where appsettings.Development.json or environment variables can override appsettings.json.28 However, the Python script will likely parse a single
+appsettings.json. If multiple connection strings are defined under the ConnectionStrings key (e.g., {"DefaultConnection": "...", "SecondaryConnection": "..."}), the method for selecting the "active" one needs clarification. For now, the system should look for a common key like "DefaultConnection". If not found, or if multiple entries exist without a clear primary, it should take the first non-empty string value found within the ConnectionStrings object. 
+* Store the retrieved active connection string securely in memory for subsequent database operations.
+
+* d. Verify/Create CSS.AIReference Project and Folders:
+* The base directory for this operation is the directory containing the selected .sln file.
+* Check if a C# Class Library project named CSS.AIReference already exists in this base directory. This involves checking for a folder named CSS.AIReference which contains a CSS.AIReference.csproj file.
+* Project Creation: If the project does not exist, create a new.NET 9 Class Library project with that name. This must be done by invoking the dotnet command-line interface (CLI): dotnet new classlib -n CSS.AIReference -f net9.0 (or the appropriate.NET version string if.NET 9 is not the final target or available). The subprocess module in Python can be used to run this command. Error handling for the CLI command (e.g., checking return codes, capturing output) is essential.
+* Adding Project to Solution: If a new project was created, it must be added to the parent .sln file. The safest way to do this is again via the dotnet CLI: dotnet sln <solution_file_path> add CSS.AIReference/CSS.AIReference.csproj. Manually editing .sln files is complex and error-prone due to its specific format and GUIDs.25 Using the CLI handles these complexities.
+* Folder Creation: Within the CSS.AIReference project folder (whether pre-existing or newly created), ensure the following subfolders exist: AIPrompt, SPExecution, SPReference, UIReference. Use Python's pathlib.Path.mkdir(parents=True, exist_ok=True) to create any missing folders.
+* Project File (.csproj) Update: Typically, simply creating folders within a C# project directory does not require manual modification of the .csproj file for those folders to be recognized, especially for modern SDK-style projects. However, if specific MSBuild items are needed for these folders (e.g., to include their contents in a particular way during build), then .csproj manipulation might be necessary, which is significantly more complex and best avoided unless explicitly required. For now, assume folder creation is sufficient.
+
+* For testing you can use this real solution "P:\Repositories\CSS SES\Gti\Gti.sln"
+
+The manipulation of C# project and solution files from an external script (Python in this case) carries inherent complexities. Relying on the dotnet CLI for operations like project creation and adding projects to solutions is strongly recommended over direct file manipulation, as the CLI understands the project and solution file formats and ensures their integrity. Checks for the existence of projects and folders before creation will make these operations idempotent.
+
+5. Stored Procedure File Generation:
+
+* Using the database connection string extracted from appsettings.json, connect to the database. The specific Python DB-API 2.0 compliant library (e.g., pyodbc for SQL Server, psycopg2 for PostgreSQL) will depend on the target database type, which should be inferred or specified. The targeted databse is SQL Server.
+
+* For each "SP Name" obtained from the Excel data, retrieve its definition or related data from the database as you are doing now. You should follow the current naming for the files. For making sure we both are in the same page, once you get the sp, you need to generate 3 files for each sp. ALl files must be text files (.txt).
+a. File 1 - SP1_[Type].txt. - This file will have the sp definition. 
+b. File 2 - SP1_Input.txt. - This file will have the Json data to execute the SP, this will be there in the SP definition which you need to identify and extract, you many use some regex patern to get this.
+c. File 3 - SP1_Output.txt. - This file will have the output json of that SP, after executing you will get some table data, sometimes you will have one jsone data in one columns, so it will be like nested json, anyways, after getting that data you need to store it as a json, and save it as a text file.
+
+For next sp you will be starting with SP2_[Type].txt, SP2_Input.txt, SP2_Output.txt and so on... This [Type] you will be getting it from the excel data.
+
+* The generated files (e.g., text files containing SP scripts, or other derived content) must be saved into the CSS.AIReference/SPExecution/ folder.
+
+* Before saving new files, this SPExecution folder should be cleared of any existing files from previous runs to avoid stale data.
+
+6. Prompt File Editing and Saving:
+
+* The application needs to access generic prompt templates located in a Templates/Prompts/ directory. This path should be relative to the dev_automator project's root or its assets folder.
+
+* The Excel data provides "Module Name" and a "Entity Name".
+* For each generic prompt template, perform a find-and-replace operation: substitute placeholders like {MODULE_NAME} and {Entity_NAME} with the actual values obtained from the Excel data, The Case sensitie might be different, or those variavble bight be enclosed with [] or other senarios can be there, you need to see the Prompts yourself to create a better solid logic.
+* The updated, specific prompts must be saved into the CSS.AIReference/AIPrompt/ folder, retaining the original filenames from the Templates/Prompts/ directory.
+* When replacing the stering, also make sure to add the full path inside the prompt wherewere needed (so write another regex function for this)
+* Before saving, clean that CSS.AIReference/AIPrompt/ Folder
+
+7. Generate Button Logic:
+* When the "Generate" button is clicked:
+* Prerequisite Check: First, verify that all necessary data and configurations are available:
+* Has Excel data been successfully loaded, validated, and processed?
+* Has a C# Solution file been browsed, and has the GTI.API project been found and its connection string extracted?
+* Is the CSS.AIReference project correctly set up with the required subfolders (AIPrompt, SPExecution)?
+* If any prerequisite is missing, display an informative QMessageBox to the user and abort the generation process.
+
+Note: Along with the textbox / status notification or the place where it shous the status, you need to add a progress bar.
+
+* Execution (Threaded): If all prerequisites are met, initiate the generation tasks. These tasks (interacting with the database for SPs, extensive file I/O for saving SP, and related files (as you are doing now) and prompts) can be time-consuming. To prevent the GUI from freezing, these operations must be executed in a background thread.
+
+* Use PySide6's QThreadPool to manage a pool of worker threads.20
+
+* Create a custom class that inherits from QRunnable. The run() method of this class will contain the logic for SP file generation and prompt file processing/saving.29
+
+* This QRunnable worker should emit signals to communicate with the main UI thread. Define a separate QObject subclass to hold these signals (e.g., WorkerSignals) with signals like progress = Signal(str) (to report current task, e.g., "Processing SP: GetUserDetails"), finished = Signal(str) (to report overall success message), and error = Signal(str) (to report any errors).31
+
+* The main UI window will create an instance of this QRunnable worker, connect its signals to appropriate slots in the UI (e.g., a slot to update a QLabel with progress messages, another to display a final status message or error in a QMessageBox), and then start the worker using QThreadPool.globalInstance().start(worker).
+* Ensure QRunnable instances are configured for auto-deletion if they are not meant to be reused (worker.setAutoDelete(True)).30
+
+* The generation steps include:
+* Clearing the CSS.AIReference/AIPrompt/ folder.
+* Placing the corrected/updated prompt files into CSS.AIReference/AIPrompt/.
+* Clearing the CSS.AIReference/SPExecution/ folder.
+* Generating all files from the Stored Procedures (using the obtained connection string and Excel data) and saving them into CSS.AIReference/SPExecution/.
+8. User Notification:
+* Upon completion of the "Generate" process (whether successful or failed), the user must be notified. This can be achieved by:
+* Updating a progress bar and a dedicated QLabel in the main window.
+* Displaying a QMessageBox summarizing the outcome.
+* The notification should clearly state:
+* A summary of tasks that were completed successfully.
+* A list of any tasks that were not completed.
+* Details of any errors encountered during the process. This information can be passed from the worker thread via the error signal.
+
+B. Integrating Tooling and Best Practices
+
+Similar to dev_manager (P:\Repositories\css_dev_manager), dev_automator requires adherence to modern tooling and development standards.
+
+1. UV for Dependency Management:
+* All dependencies must be managed via uv and declared in pyproject.toml.1
+
+* Essential dependencies include: Latest PySide (for the GUI), polars (for Excel processing), pytest (for testing), pytest-qt (for testing PySide6 components), ruff (for linting/formatting).
+
+* Depending on the database used for stored procedures, a DB-API driver like pyodbc (for SQL Server) 
+
+* Follow the same uv workflow as for dev_manager (init, add, lock file, etc..)
+
+2. Polars for Excel Data Handling:
+* Mandate the use of polars.read_excel(engine='fastexcel',...) for reading Excel files to ensure high performance, especially with potentially large datasets.
+
+* Leverage Polars' powerful expression API for data validation, cleaning, and transformation tasks (e.g., string manipulations for PascalCase conversion, filtering rows, selecting columns).33 Polars is designed for performance and can handle larger-than-memory datasets if needed, though for this application, its in-memory speed and expressive API are the primary benefits.
+
+3. Latest PySide for GUI Development:
+* The GUI should be built using QMainWindow or QWidget as the base for the main application window.
+
+* Utilize Qt's layout classes (QVBoxLayout, QHBoxLayout, QGridLayout, etc.) for arranging widgets. This ensures the UI is responsive to window resizing and different screen resolutions.
+
+* The signals and slots mechanism is fundamental for event handling and communication between UI components and backend logic. All button clicks, file dialog completions, etc., should trigger slots.
+
+* Threading for Long-Running Tasks: This is critical for dev_automator. Any operation that might take more than a fraction of a second (file parsing, database queries, code generation, dotnet CLI calls) must be offloaded from the main UI thread to prevent freezing.
+* Use QThreadPool.globalInstance() to manage worker threads.
+* Create custom QRunnable subclasses for each distinct background task (e.g., ExcelProcessingWorker, SolutionParsingWorker, GenerationWorker).
+* Each QRunnable should have an associated QObject (e.g., WorkerSignals) that defines Signal instances for progress, completion, and errors.
+* The main UI thread will instantiate these workers, connect their signals to UI update slots (e.g., updating a QProgressBar, QLabel, or showing a QMessageBox), and then queue them on the QThreadPool.20
+
+*   **QObject Lifetime Management:** Ensure proper parent-child relationships for `QObject`s (including `QWidget`s) to aid Qt's memory management. Top-level windows typically don't have parents, but their child widgets do.[22] For `QRunnable` objects used with `QThreadPool`, `setAutoDelete(True)` is often used so the thread pool cleans them up after execution.
+
+
+4. pytest for Testing:
+* Write comprehensive unit tests for:
+* Excel parsing and validation logic (using Polars, possibly with sample Excel files).
+* C# solution parsing logic (mocking file system interactions for .sln and appsettings.json files).
+* Prompt template processing and placeholder replacement.
+* C# class name formatting (PascalCase conversion).
+* Utilize pytest-qt for testing PySide6 UI components and interactions:
+* Test that buttons, when clicked, trigger the correct actions (e.g., opening file dialogs).
+* Test signal emissions from worker threads and the corresponding slot receptions in the UI, verifying that UI elements (labels, progress bars if added) are updated correctly.
+* Simulate user input where possible.
+* dotnet CLI calls (e.g., using unittest.mock.patch to simulate subprocess.run behavior).
+* File system operations that are not core to the unit being tested.
+* Follow general pytest best practices such as using fixtures for setup/teardown, keeping tests small and focused, and testing behavior over implementation.
+* Test all the database operations with real data.
+* Test all file operations with real files and folders.
+* Test all .NET operations with real .NET projects.
+* All the necessary real time data is already provided to you.
+
+5. Ruff for Linting and Formatting:
+* Apply the same Ruff configuration and pre-commit hook setup as detailed for dev_manager (see Section II.B.4) to maintain consistent code quality and style across both projects.
+
+6. Modularity and Naming Conventions:
+* The project should be highly modular. Suggested Python modules:
+* main_app.py or gui_manager.py: Main application class, PySide6 window setup, QThreadPool management.
+* excel_handler.py: Logic for downloading, reading, validating, and processing Excel files using Polars.
+* csharp_parser.py: Logic for parsing .sln files, finding appsettings.json, extracting connection strings, and managing the CSS.AIReference project/folders (including dotnet CLI interactions).
+* db_connector.py or sp_processor.py: Logic for connecting to the database and fetching/processing stored procedure data.
+* prompt_generator.py: Logic for reading prompt templates and generating specific prompts.
+* worker_tasks.py: Definitions for QRunnable subclasses and their WorkerSignals.
+* Strictly adhere to PEP 8 naming conventions.
+* The folder structure should be similar to dev_manager, with src/, tests/, assets/ (for Excel/Prompt templates), scripts/ (if any specific build/utility scripts for dev_automator itself are needed beyond what dev_manager handles).
+
+7. Industrial Standard Build and Deployment:
+* dev_automator.exe will be built (using PyInstaller, consistent with dev_manager's choice) by dev_manager when the "build and upload dev_automator" option is selected.
+

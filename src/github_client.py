@@ -1,0 +1,706 @@
+"""
+GitHub client for building and releasing DevManager and DevAutomator.
+"""
+
+import logging
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+
+from github import Github, GithubException
+
+try:
+    from .common.constants import VERSION, CURRENT_PLATFORM, SUPPORTED_PLATFORMS
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from common.constants import VERSION, CURRENT_PLATFORM, SUPPORTED_PLATFORMS
+
+# GitHub Configuration
+GITHUB_CONFIG = {
+    "owner": "cyberionsoft",
+    "repos": {
+        "devmanager": "css_dev_manager",
+        "devautomator": "css_dev_automator"
+    },
+    "urls": {
+        "devmanager": "https://github.com/cyberionsoft/css_dev_manager",
+        "devautomator": "https://github.com/cyberionsoft/css_dev_automator"
+    },
+    "release_format": "v{version}",
+    "asset_naming": {
+        "devmanager": "dev_manager_{platform}.zip",
+        "devautomator": "dev_automator_{platform}.zip"
+    }
+}
+
+try:
+    from .common.constants import VERSION
+    from .common.utils import get_platform_info
+except ImportError:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from common.constants import VERSION
+    from common.utils import get_platform_info
+
+
+class GitHubClient:
+    """
+    Client for interacting with GitHub for build and release operations.
+    """
+
+    def __init__(self):
+        """Initialize the GitHub client."""
+        # Use provided token or environment variable
+        self.github_token = os.environ.get("GITHUB_TOKEN")
+        if not self.github_token:
+            raise ValueError("GITHUB_TOKEN environment variable is required")
+
+        self.github = Github(self.github_token)
+        self.platform_info = get_platform_info()
+        self.config = GITHUB_CONFIG
+
+        # Test connection on initialization
+        self._test_connection()
+
+    def build_and_release_devmanager(self) -> bool:
+        """
+        Build and release DevManager.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            print("    🚀 Starting DevManager build and release process")
+            logging.info("Starting DevManager build and release process")
+
+            print("    🔗 Connecting to GitHub repository...")
+            # Get repository
+            repo = self.github.get_repo(f"{self.config['owner']}/{self.config['repos']['devmanager']}")
+            print("    ✅ Repository connection established")
+
+            # Build the application
+            build_path = self._build_devmanager()
+            if not build_path:
+                print("    ❌ Build failed")
+                return False
+
+            print("    📋 Preparing release information...")
+            # Create release
+            release_tag = f"v{VERSION}"
+            release_name = f"DevManager {VERSION}"
+            release_notes = self._generate_release_notes("DevManager", VERSION)
+
+            try:
+                # Check if release already exists
+                release = repo.get_release(release_tag)
+                print(f"    🔄 Release {release_tag} already exists, updating...")
+                logging.info(f"Release {release_tag} already exists, updating...")
+            except GithubException:
+                # Create new release
+                print(f"    🆕 Creating new release: {release_tag}")
+                release = repo.create_git_release(
+                    tag=release_tag,
+                    name=release_name,
+                    message=release_notes,
+                    draft=False,
+                    prerelease=False,
+                )
+                print(f"    ✅ Created new release: {release_tag}")
+                logging.info(f"Created new release: {release_tag}")
+
+            # Upload asset
+            asset_name = f"devmanager_{self.platform_info['platform_key']}.zip"
+            print(f"    📤 Uploading asset: {asset_name}")
+
+            # Get file size for progress reporting
+            file_size = build_path.stat().st_size
+            file_size_mb = file_size / (1024 * 1024)
+            print(f"    📊 File size: {file_size_mb:.1f} MB")
+
+            # Remove existing asset if it exists
+            print("    🔍 Checking for existing assets...")
+            existing_assets = list(release.get_assets())
+            for asset in existing_assets:
+                if asset.name == asset_name:
+                    print(f"    🗑️  Removing existing asset: {asset_name}")
+                    asset.delete_asset()
+                    logging.info(f"Removed existing asset: {asset_name}")
+                    break
+            else:
+                print("    ✅ No existing asset found")
+
+            # Upload new asset
+            print(f"    ⬆️  Starting upload to GitHub...")
+            print(f"       Uploading {asset_name} ({file_size_mb:.1f} MB)")
+            print("       This may take a few moments depending on your connection...")
+
+            import time
+            upload_start = time.time()
+
+            release.upload_asset(
+                path=str(build_path),
+                name=asset_name,
+                content_type="application/zip",
+            )
+
+            upload_time = int(time.time() - upload_start)
+            upload_speed = file_size_mb / max(upload_time, 1)
+            print(f"    ✅ Upload completed in {upload_time}s (avg: {upload_speed:.1f} MB/s)")
+
+            print(f"    ✅ Successfully uploaded {asset_name}")
+            print(f"    🌐 Release URL: {release.html_url}")
+            logging.info(f"Successfully uploaded {asset_name}")
+            return True
+
+        except Exception as e:
+            print(f"    ❌ Release failed: {e}")
+            logging.error(f"Error in DevManager build and release: {e}", exc_info=True)
+            return False
+
+    def build_and_release_devautomator(self) -> bool:
+        """
+        Build and release DevAutomator.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            print("    🚀 Starting DevAutomator build and release process")
+            logging.info("Starting DevAutomator build and release process")
+
+            print("    🔗 Connecting to GitHub repository...")
+            # Get repository
+            repo = self.github.get_repo(f"{self.config['owner']}/{self.config['repos']['devautomator']}")
+            print("    ✅ Repository connection established")
+
+            # Build the application
+            build_path = self._build_devautomator()
+            if not build_path:
+                print("    ❌ Build failed")
+                return False
+
+            print("    📋 Preparing release information...")
+            # Create release
+            release_tag = f"v{VERSION}"
+            release_name = f"DevAutomator {VERSION}"
+            release_notes = self._generate_release_notes("DevAutomator", VERSION)
+
+            try:
+                # Check if release already exists
+                release = repo.get_release(release_tag)
+                print(f"    🔄 Release {release_tag} already exists, updating...")
+                logging.info(f"Release {release_tag} already exists, updating...")
+            except GithubException:
+                # Create new release
+                print(f"    🆕 Creating new release: {release_tag}")
+                release = repo.create_git_release(
+                    tag=release_tag,
+                    name=release_name,
+                    message=release_notes,
+                    draft=False,
+                    prerelease=False,
+                )
+                print(f"    ✅ Created new release: {release_tag}")
+                logging.info(f"Created new release: {release_tag}")
+
+            # Upload asset
+            asset_name = f"devautomator_{self.platform_info['platform_key']}.zip"
+            print(f"    📤 Uploading asset: {asset_name}")
+
+            # Get file size for progress reporting
+            file_size = build_path.stat().st_size
+            file_size_mb = file_size / (1024 * 1024)
+            print(f"    📊 File size: {file_size_mb:.1f} MB")
+
+            # Remove existing asset if it exists
+            print("    🔍 Checking for existing assets...")
+            existing_assets = list(release.get_assets())
+            for asset in existing_assets:
+                if asset.name == asset_name:
+                    print(f"    🗑️  Removing existing asset: {asset_name}")
+                    asset.delete_asset()
+                    logging.info(f"Removed existing asset: {asset_name}")
+                    break
+            else:
+                print("    ✅ No existing asset found")
+
+            # Upload new asset
+            print(f"    ⬆️  Starting upload to GitHub...")
+            print(f"       Uploading {asset_name} ({file_size_mb:.1f} MB)")
+            print("       This may take a few moments depending on your connection...")
+
+            import time
+            upload_start = time.time()
+
+            release.upload_asset(
+                path=str(build_path),
+                name=asset_name,
+                content_type="application/zip",
+            )
+
+            upload_time = int(time.time() - upload_start)
+            upload_speed = file_size_mb / max(upload_time, 1)
+            print(f"    ✅ Upload completed in {upload_time}s (avg: {upload_speed:.1f} MB/s)")
+
+            print(f"    ✅ Successfully uploaded {asset_name}")
+            print(f"    🌐 Release URL: {release.html_url}")
+            logging.info(f"Successfully uploaded {asset_name}")
+            return True
+
+        except Exception as e:
+            print(f"    ❌ Release failed: {e}")
+            logging.error(
+                f"Error in DevAutomator build and release: {e}", exc_info=True
+            )
+            return False
+
+    def _build_devmanager(self) -> Path | None:
+        """
+        Build DevManager using PyInstaller.
+
+        Returns:
+            Path to built package or None if failed
+        """
+        try:
+            print("    🔨 Compiling DevManager executable...")
+            logging.info("Building DevManager...")
+
+            # Create temporary build directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                build_dir = Path(temp_dir) / "build"
+                dist_dir = Path(temp_dir) / "dist"
+
+                print("    ⚙️  Running PyInstaller...")
+                print("    📋 Build configuration:")
+                print(f"       • Target: DevManager.exe")
+                print(f"       • Mode: Single file executable")
+                print(f"       • Source: src/main.py")
+                print(f"       • Output: {dist_dir}")
+
+                # Run PyInstaller
+                cmd = [
+                    "pyinstaller",
+                    "--onefile",
+                    "--name",
+                    "DevManager",
+                    "--distpath",
+                    str(dist_dir),
+                    "--workpath",
+                    str(build_dir),
+                    "--clean",
+                    "src/main.py",
+                ]
+
+                print("    🔄 Starting PyInstaller process...")
+                print("       This may take 2-3 minutes, please wait...")
+
+                # Run with real-time output
+                import time
+                start_time = time.time()
+
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+
+                # Show progress indicators
+                last_update = time.time()
+                while process.poll() is None:
+                    current_time = time.time()
+                    if current_time - last_update > 10:  # Update every 10 seconds
+                        elapsed = int(current_time - start_time)
+                        print(f"    ⏱️  Build in progress... ({elapsed}s elapsed)")
+                        last_update = current_time
+                    time.sleep(1)
+
+                # Get final output
+                stdout, _ = process.communicate()
+                elapsed_total = int(time.time() - start_time)
+
+                if process.returncode != 0:
+                    print(f"    ❌ PyInstaller failed after {elapsed_total}s")
+                    print("    📄 Error details:")
+                    # Show last few lines of output for debugging
+                    error_lines = stdout.split('\n')[-10:]
+                    for line in error_lines:
+                        if line.strip():
+                            print(f"       {line}")
+                    logging.error(f"PyInstaller failed: {stdout}")
+                    return None
+                else:
+                    print(f"    ✅ PyInstaller completed successfully in {elapsed_total}s")
+
+                print("    📦 Creating distribution package...")
+                # Create zip package
+                exe_name = f"DevManager{self.platform_info['executable_ext']}"
+                exe_path = dist_dir / exe_name
+
+                if not exe_path.exists():
+                    print(f"    ❌ Built executable not found: {exe_path}")
+                    logging.error(f"Built executable not found: {exe_path}")
+                    return None
+
+                print(f"    ✅ Executable found: {exe_name}")
+                exe_size = exe_path.stat().st_size / (1024 * 1024)
+                print(f"    📊 Executable size: {exe_size:.1f} MB")
+
+                # Create zip file
+                import zipfile
+
+                zip_path = (
+                    Path(temp_dir)
+                    / f"devmanager_{self.platform_info['platform_key']}.zip"
+                )
+
+                print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.write(exe_path, exe_name)
+
+                zip_size = zip_path.stat().st_size / (1024 * 1024)
+                compression_ratio = (1 - zip_size / exe_size) * 100
+                print(f"    ✅ ZIP created: {zip_size:.1f} MB (compressed {compression_ratio:.1f}%)")
+
+                # Copy to permanent location
+                final_path = Path.cwd() / "dist" / zip_path.name
+                final_path.parent.mkdir(exist_ok=True)
+                import shutil
+
+                print(f"    📁 Copying to: {final_path}")
+                shutil.copy2(zip_path, final_path)
+
+                print(f"    ✅ DevManager built successfully: {final_path.name}")
+                logging.info(f"DevManager built successfully: {final_path}")
+                return final_path
+
+        except Exception as e:
+            print(f"    ❌ Build error: {e}")
+            logging.error(f"Error building DevManager: {e}", exc_info=True)
+            return None
+
+    def _build_devautomator(self) -> Path | None:
+        """
+        Build DevAutomator using PyInstaller.
+
+        Returns:
+            Path to built package or None if failed
+        """
+        try:
+            print("    🔨 Compiling DevAutomator executable...")
+            logging.info("Building DevAutomator...")
+
+            # Path to DevAutomator project
+            devautomator_path = Path("../css_dev_automator")
+
+            if not devautomator_path.exists():
+                print(f"    ❌ DevAutomator project not found at: {devautomator_path}")
+                logging.error(f"DevAutomator project not found at: {devautomator_path}")
+                return None
+
+            print("    📁 DevAutomator project found")
+
+            # Create temporary build directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                build_dir = Path(temp_dir) / "build"
+                dist_dir = Path(temp_dir) / "dist"
+
+                print("    ⚙️  Running PyInstaller...")
+                print("    📋 Build configuration:")
+                print(f"       • Target: DevAutomator.exe")
+                print(f"       • Mode: Single file executable")
+                print(f"       • Source: {devautomator_path / 'main.py'}")
+                print(f"       • Output: {dist_dir}")
+                print("       • Excluding: torch, numpy, scipy, pandas, matplotlib, etc.")
+
+                # Run PyInstaller from DevAutomator directory with exclusions
+                cmd = [
+                    "pyinstaller",
+                    "--onefile",
+                    "--name",
+                    "DevAutomator",
+                    "--distpath",
+                    str(dist_dir),
+                    "--workpath",
+                    str(build_dir),
+                    "--clean",
+                    # Exclude problematic packages
+                    "--exclude-module", "torch",
+                    "--exclude-module", "numpy",
+                    "--exclude-module", "scipy",
+                    "--exclude-module", "pandas",
+                    "--exclude-module", "matplotlib",
+                    "--exclude-module", "tensorflow",
+                    "--exclude-module", "sklearn",
+                    "--exclude-module", "tkinter",
+                    "--exclude-module", "jupyter",
+                    "--exclude-module", "IPython",
+                    "--exclude-module", "notebook",
+                    str(devautomator_path / "main.py"),
+                ]
+
+                print("    🔄 Starting PyInstaller process...")
+                print("       This may take 2-3 minutes, please wait...")
+
+                # Run with real-time output
+                import time
+                start_time = time.time()
+
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=str(devautomator_path),
+                    bufsize=1,
+                    universal_newlines=True
+                )
+
+                # Show progress indicators
+                last_update = time.time()
+                while process.poll() is None:
+                    current_time = time.time()
+                    if current_time - last_update > 10:  # Update every 10 seconds
+                        elapsed = int(current_time - start_time)
+                        print(f"    ⏱️  Build in progress... ({elapsed}s elapsed)")
+                        last_update = current_time
+                    time.sleep(1)
+
+                # Get final output
+                stdout, _ = process.communicate()
+                elapsed_total = int(time.time() - start_time)
+
+                if process.returncode != 0:
+                    print(f"    ❌ PyInstaller failed after {elapsed_total}s")
+                    print("    📄 Error details:")
+                    # Show last few lines of output for debugging
+                    error_lines = stdout.split('\n')[-10:]
+                    for line in error_lines:
+                        if line.strip():
+                            print(f"       {line}")
+                    logging.error(f"PyInstaller failed: {stdout}")
+                    return None
+                else:
+                    print(f"    ✅ PyInstaller completed successfully in {elapsed_total}s")
+
+                print("    📦 Creating distribution package...")
+                # Create zip package
+                exe_name = f"DevAutomator{self.platform_info['executable_ext']}"
+                exe_path = dist_dir / exe_name
+
+                if not exe_path.exists():
+                    print(f"    ❌ Built executable not found: {exe_path}")
+                    logging.error(f"Built executable not found: {exe_path}")
+                    return None
+
+                print(f"    ✅ Executable found: {exe_name}")
+                exe_size = exe_path.stat().st_size / (1024 * 1024)
+                print(f"    📊 Executable size: {exe_size:.1f} MB")
+
+                # Create zip file
+                import zipfile
+
+                zip_path = (
+                    Path(temp_dir)
+                    / f"devautomator_{self.platform_info['platform_key']}.zip"
+                )
+
+                print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.write(exe_path, exe_name)
+
+                zip_size = zip_path.stat().st_size / (1024 * 1024)
+                compression_ratio = (1 - zip_size / exe_size) * 100
+                print(f"    ✅ ZIP created: {zip_size:.1f} MB (compressed {compression_ratio:.1f}%)")
+
+                # Copy to permanent location
+                final_path = Path.cwd() / "dist" / zip_path.name
+                final_path.parent.mkdir(exist_ok=True)
+                import shutil
+
+                print(f"    📁 Copying to: {final_path}")
+                shutil.copy2(zip_path, final_path)
+
+                print(f"    ✅ DevAutomator built successfully: {final_path.name}")
+                logging.info(f"DevAutomator built successfully: {final_path}")
+                return final_path
+
+        except Exception as e:
+            print(f"    ❌ Build error: {e}")
+            logging.error(f"Error building DevAutomator: {e}", exc_info=True)
+            return None
+
+    def _test_connection(self) -> bool:
+        """
+        Test GitHub API connection and repository access.
+
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            logging.info("Testing GitHub API connection...")
+
+            # Test basic API access
+            user = self.github.get_user()
+            logging.info(f"Connected to GitHub as: {user.login}")
+
+            # Test repository access
+            for repo_key, repo_name in self.config['repos'].items():
+                try:
+                    repo = self.github.get_repo(f"{self.config['owner']}/{repo_name}")
+                    logging.info(f"✅ Access confirmed for {repo_key}: {repo.full_name}")
+                except GithubException as e:
+                    logging.error(f"❌ Cannot access {repo_key} repository: {e}")
+                    return False
+
+            logging.info("✅ GitHub connection and repository access verified")
+            return True
+
+        except Exception as e:
+            logging.error(f"❌ GitHub connection test failed: {e}")
+            return False
+
+    def check_repository_access(self, repo_key: str) -> bool:
+        """
+        Check access to a specific repository.
+
+        Args:
+            repo_key: Repository key ('devmanager' or 'devautomator')
+
+        Returns:
+            True if access is available
+        """
+        try:
+            repo_name = self.config['repos'].get(repo_key)
+            if not repo_name:
+                logging.error(f"Unknown repository key: {repo_key}")
+                return False
+
+            repo = self.github.get_repo(f"{self.config['owner']}/{repo_name}")
+            logging.info(f"Repository access confirmed: {repo.full_name}")
+            return True
+
+        except GithubException as e:
+            logging.error(f"Repository access failed for {repo_key}: {e}")
+            return False
+
+    def get_latest_release_info(self, repo_key: str) -> dict:
+        """
+        Get latest release information for a repository.
+
+        Args:
+            repo_key: Repository key ('devmanager' or 'devautomator')
+
+        Returns:
+            Dictionary with release information
+        """
+        try:
+            repo_name = self.config['repos'].get(repo_key)
+            if not repo_name:
+                return {"error": f"Unknown repository key: {repo_key}"}
+
+            repo = self.github.get_repo(f"{self.config['owner']}/{repo_name}")
+
+            try:
+                latest_release = repo.get_latest_release()
+                return {
+                    "tag_name": latest_release.tag_name,
+                    "name": latest_release.title,
+                    "published_at": latest_release.published_at.isoformat(),
+                    "assets": [
+                        {
+                            "name": asset.name,
+                            "download_url": asset.browser_download_url,
+                            "size": asset.size
+                        }
+                        for asset in latest_release.get_assets()
+                    ]
+                }
+            except GithubException:
+                return {"error": "No releases found"}
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_repository(self, repo_name: str):
+        """
+        Get a GitHub repository object.
+
+        Args:
+            repo_name: Full repository name (owner/repo)
+
+        Returns:
+            GitHub repository object
+        """
+        return self.github.get_repo(repo_name)
+
+    def get_releases(self, repo_name: str) -> list:
+        """
+        Get all releases for a repository.
+
+        Args:
+            repo_name: Full repository name (owner/repo)
+
+        Returns:
+            List of release objects
+        """
+        try:
+            repo = self.github.get_repo(repo_name)
+            return list(repo.get_releases())
+        except Exception as e:
+            logging.error(f"Error getting releases for {repo_name}: {e}")
+            return []
+
+    def get_latest_version(self, repo_name: str) -> str | None:
+        """
+        Get the latest version tag for a repository.
+
+        Args:
+            repo_name: Full repository name (owner/repo)
+
+        Returns:
+            Latest version string or None if no releases
+        """
+        try:
+            repo = self.github.get_repo(repo_name)
+            latest_release = repo.get_latest_release()
+            return latest_release.tag_name
+        except Exception as e:
+            logging.debug(f"No releases found for {repo_name}: {e}")
+            return None
+
+    def _generate_release_notes(self, app_name: str, version: str) -> str:
+        """
+        Generate release notes for the application.
+
+        Args:
+            app_name: Name of the application
+            version: Version being released
+
+        Returns:
+            Release notes string
+        """
+        return f"""# {app_name} {version}
+
+## What's New
+- Bug fixes and improvements
+- Updated dependencies
+- Performance optimizations
+
+## Installation
+Download the appropriate package for your platform and extract it to your desired location.
+
+## System Requirements
+- Windows 10 or later
+- macOS 10.15 or later
+- Linux (Ubuntu 20.04+ or equivalent)
+
+## Support
+For issues and support, please visit our GitHub repository: {self.config['urls'][app_name.lower().replace('dev', 'dev')]}
+"""

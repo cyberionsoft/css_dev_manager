@@ -1,0 +1,143 @@
+Enhancing dev_manager (Version 0.1.0)
+
+Note: The app is completly GUI not Terminal
+So, all the status should be visible in the GUI window, to inform the user about the progress of the operation.
+
+The dev_manager GUI application, in its initial version 0.1.0, serves as a foundational tool for managing development environments, with a specific focus on its own updates and the updates and build processes for the dev_automator project. The following refinements aim to clarify its functionalities and integrate modern development practices.
+
+The core logic of dev_manager revolves around its startup mode (normal or token-based), update mechanisms, and its role in building and deploying itself and dev_automator.
+
+1. Application Startup and Token Handling:
+
+The application must support two distinct startup methods:
+
+* Normal Startup (Double-Click): Initiated by user interaction with the executable - GUI Startup.
+
+* Token-Based Startup (GUI): Initiated via a command-line interface, passing a specific token - GUI Startup.
+
+* Token Generation and Validation: A secure method for generating and validating these tokens is paramount. This module should create tokens with sufficient entropy to prevent trivial guessing. Validation should confirm the token's authenticity and integrity. Consider cryptographically signed tokens (e.g., JWT). 
+
+2. Token-Based Startup Options:
+
+If started with a valid token, dev_manager should present two primary options to the user, via a simple PySide GUI menu:
+
+* Menu 1: Build and Upload dev_manager:
+
+* This involves executing build scripts to compile dev_manager into an executable.
+
+* you will be provided with the path of dev_manager (P:\Repositories\css_dev_manager). Same Repository, this repository path is permanent. The Development machine is also permanent, so can add the constants accordingly if needed.
+
+* Subsequently, it must interact with GitHub to create a new release, upload the generated binary, and include release notes. This requires secure handling of GitHub API tokens/credentials. Which is also provided in the code. 
+
+* Menu 2: Build and Upload dev_automator:
+
+* Similar to Option 1, but targets the dev_automator project (P:\Repositories\css_dev_automator), the path is permanent, the development machine is also permanent.
+
+3. Normal Startup Update Logic (GUI WIndow):
+
+* Self-Installer, Upon a normal start, dev_Manager must instanll itself to the program files, it it is not in the program files. 
+* Self-Update Check: dev_manager must first connect to its GitHub repository to check for a newer version also get the release notes. This typically involves comparing the current application version with the latest release tag on GitHub.
+
+Following are the necessary values for GitHub
+
+GitHub Token: [CONFIGURED_IN_ENVIRONMENT]
+dev_manager repo: https://github.com/cyberionsoft/css_dev_manager
+dev_automator repo: https://github.com/cyberionsoft/css_dev_automator
+organization repo: https://github.com/cyberionsoft
+user repo: https://github.com/jirankuriancyberion
+
+* Self-Update Execution: If an update is found:
+
+* Download the new executable/package.
+
+* Execute a separate script. This script is crucial because an application cannot typically replace its own running executable directly.
+
+* dev_manager will exit after launching self update script.
+
+* The self update script will:
+
+* Wait for the main dev_manager process to terminate.
+
+* Replace the old dev_manager.exe with the downloaded new version (or perform a more standard installation procedure like unzipping an archive and replacing files).
+
+* Start the newly updated dev_manager.exe.
+
+* The self_update.py script will then exit.
+
+* Once the new dev_manager starts, it should re-check for updates (as per the original flow) to confirm the update process or to catch any immediate subsequent updates. This re-check ensures the application is always on the latest version before proceeding.
+
+* dev_automator Update Check: If no update for dev_manager is found, it then proceeds to check for updates for dev_automator via its GitHub repository.
+
+* dev_automator Update Execution: If an update for dev_automator is found:
+
+* Terminate any running instance of dev_automator.exe. This might require process management utilities (e.g., Python's psutil library, if allowed, or system commands).
+
+* Download the dev_automator update.
+
+* Replace the existing dev_automator.exe with the new version.
+
+* Start the updated dev_automator.exe. This startup must be token-based, meaning dev_manager will generate a new, valid token and pass it to dev_automator via the command line.
+
+* After successfully starting dev_automator, dev_manager will exit.
+
+
+For both (Terminal UI and GUI) we need a progress bar, we also need a status text box kind of place where you can write the log on what's happening right now - similar to the dev_automator. 
+
+4. Installation Path and Structure:
+
+The specified installation path on Windows is C:\Program Files\DevManager\. This directory should contain:
+* DevManager.exe
+* DevAutomator.exe
+
+B. Integrating Tooling and Best Practices
+
+To ensure dev_manager is robust, maintainable, and easily deployable, specific tools and practices must be adopted.
+
+1. UV for Dependency Management: All Python dependencies must be managed using uv. The project should contain a pyproject.toml file declaring its dependencies.
+
+* Initialize the project with uv init if starting fresh or migrating if it is not done before.
+
+* Dependencies (e.g., requests or httpx for GitHub client, pytest for testing, ruff for linting, PyInstaller for bundling, psutil if used for process management) should be added using uv add <package>.
+
+* uv creates a virtual environment (typically in .venv) and a uv.lock file to ensure reproducible builds.
+
+The goal is to have pyproject.toml as the source of truth for dependencies.
+
+2. PyInstaller for Executable Creation:
+For creating the .exe files for Windows, PyInstaller should be used.
+ 
+* Installation directory (C:\Program Files\DevManager\).
+* Creation of shortcuts (Desktop, Start Menu).
+
+3. Ruff for Linting and Formatting:
+
+Ruff should be used for linting and code formatting, configured via pyproject.toml.
+* Enable rule sets like pycodestyle (E), Pyflakes (F), isort (I), and Bugbear (B) for comprehensive checks.11
+
+*   Integrate Ruff into pre-commit hooks to ensure code quality before commits
+
+Ensure the Ruff lint hook with `--fix` runs before the formatter hook. 
+
+
+4. pytest for Testing:
+
+pytest should be used for writing and running tests.
+
+* Tests should be placed in the tests/ directory (e.g., test_main.py, test_updater.py).
+
+* Make sure all the GitHub operations are happening with real-time values. 
+* Make sure all the self update, update other project, and all other operations are happening in real time. 
+* Make sure all the build and release of the projects are happening in the button click.
+* Make sure all the features are working as it is intended to with real data and values.
+
+5. use latest Pyside for UI/Dialogs
+
+6. Use other best-in-class libraries where necessary (e.g., httpx for networking, PyGithub for GitHub API interaction).
+
+6. Modularity, Naming Conventions
+* Adhere to PEP 8 naming conventions for Python code.
+* Ensure modules have clear responsibilities.
+
+
+
+
