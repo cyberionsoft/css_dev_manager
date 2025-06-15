@@ -115,7 +115,8 @@ class BaseUpdater:
             # Get release information
             url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{self.repo_name}/releases/tags/v{version_tag}"
 
-            with httpx.Client() as client:
+            # Configure client to follow redirects (GitHub uses redirects for release downloads)
+            with httpx.Client(follow_redirects=True) as client:
                 response = client.get(url, timeout=30)
                 response.raise_for_status()
 
@@ -129,15 +130,26 @@ class BaseUpdater:
 
                 download_url = None
                 available_assets = []
+
+                # Try multiple naming conventions for compatibility
+                possible_names = [
+                    f"{self.app_name}_v{version_tag}_{platform_key}.zip",  # lowercase: windows
+                    f"{self.app_name}_v{version_tag}_{platform_key.title()}.zip",  # title case: Windows
+                    f"{self.app_name}_v{version_tag}_{platform_key.upper()}.zip",  # uppercase: WINDOWS
+                ]
+
                 for asset in assets:
                     available_assets.append(asset["name"])
-                    if asset["name"] == asset_name:
+                    # Check against all possible naming conventions
+                    if asset["name"] in possible_names:
                         download_url = asset["browser_download_url"]
+                        asset_name = asset["name"]  # Use the actual asset name found
+                        logging.info(f"Found asset with name: {asset_name}")
                         break
 
                 if not download_url:
                     logging.error(f"No asset found for platform: {platform_key}")
-                    logging.error(f"Looking for: {asset_name}")
+                    logging.error(f"Looking for any of: {possible_names}")
                     logging.error(f"Available assets: {available_assets}")
                     return None
 

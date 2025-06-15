@@ -408,9 +408,11 @@ class GitHubClient:
                 # Create zip file
                 import zipfile
 
+                # Ensure consistent platform naming (lowercase for compatibility)
+                platform_name = self.platform_info['platform_key'].lower()
                 zip_path = (
                     Path(temp_dir)
-                    / f"DevManager_v{VERSION}_{self.platform_info['platform_key']}.zip"
+                    / f"DevManager_v{VERSION}_{platform_name}.zip"
                 )
 
                 print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
@@ -633,9 +635,11 @@ class GitHubClient:
                 # Create zip file
                 import zipfile
 
+                # Ensure consistent platform naming (lowercase for compatibility)
+                platform_name = self.platform_info['platform_key'].lower()
                 zip_path = (
                     Path(temp_dir)
-                    / f"DevAutomator_v{VERSION}_{self.platform_info['platform_key']}.zip"
+                    / f"DevAutomator_v{VERSION}_{platform_name}.zip"
                 )
 
                 print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
@@ -791,9 +795,11 @@ class GitHubClient:
             # Create ZIP package
             print("📦 Creating ZIP package...")
             with tempfile.TemporaryDirectory() as temp_dir:
+                # Ensure consistent platform naming (lowercase for compatibility)
+                platform_name = self.platform_info['platform_key'].lower()
                 asset_name = self.config['asset_naming'][app_name].format(
                     version=version,
-                    platform=self.platform_info['platform_key']
+                    platform=platform_name
                 )
                 zip_path = Path(temp_dir) / asset_name
 

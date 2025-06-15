@@ -111,7 +111,7 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument("--test-encryption", action="store_true", help="Test encryption system and exit")
 
-    parser.add_argument("--version", action="version", version=f"{APP_NAME} 0.1.0")
+    parser.add_argument("--version", action="version", version=f"{APP_NAME} {VERSION}")
 
     return parser.parse_args()
 
