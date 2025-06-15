@@ -189,15 +189,16 @@ class Packager:
         try:
             # Determine the application name
             app_name = self._get_app_name()
+            platform_info = SUPPORTED_PLATFORMS[platform]
 
-            # Find the built application directory
+            # Check for single executable first
+            executable_name = f"{app_name}{platform_info['executable_ext']}"
+            executable_path = self.dist_dir / executable_name
+
+            # Check for directory structure
             app_dir = self.dist_dir / app_name
-            if not app_dir.exists():
-                logging.error(f"Built application directory not found: {app_dir}")
-                return None
 
             # Create archive filename
-            platform_info = SUPPORTED_PLATFORMS[platform]
             archive_name = f"{app_name}_{version}_{platform_info['platform_key']}.zip"
             archive_path = self.dist_dir / archive_name
 
@@ -205,11 +206,21 @@ class Packager:
 
             # Create ZIP archive
             with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in app_dir.rglob("*"):
-                    if file_path.is_file():
-                        # Calculate relative path within the archive
-                        arcname = file_path.relative_to(app_dir)
-                        zipf.write(file_path, arcname)
+                if executable_path.exists():
+                    # Single executable file
+                    logging.info(f"Archiving single executable: {executable_path}")
+                    zipf.write(executable_path, executable_path.name)
+                elif app_dir.exists():
+                    # Directory structure
+                    logging.info(f"Archiving directory: {app_dir}")
+                    for file_path in app_dir.rglob("*"):
+                        if file_path.is_file():
+                            # Calculate relative path within the archive
+                            arcname = file_path.relative_to(app_dir)
+                            zipf.write(file_path, arcname)
+                else:
+                    logging.error(f"Neither executable {executable_path} nor directory {app_dir} found")
+                    return None
 
             # Verify archive was created
             if archive_path.exists():
