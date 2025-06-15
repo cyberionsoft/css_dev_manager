@@ -1,9 +1,9 @@
-Enhancing dev_manager (Version 0.1.0)
+Enhancing dev_manager (Version 0.1.1)
 
 Note: The app is completly GUI not Terminal
 So, all the status should be visible in the GUI window, to inform the user about the progress of the operation.
 
-The dev_manager GUI application, in its initial version 0.1.0, serves as a foundational tool for managing development environments, with a specific focus on its own updates and the updates and build processes for the dev_automator project. The following refinements aim to clarify its functionalities and integrate modern development practices.
+The dev_manager GUI application, in its current version 0.1.1, serves as a foundational tool for managing development environments, with a specific focus on its own updates and the updates and build processes for the dev_automator project. This version includes enhanced encryption system for secure token bundling and improved DevAutomator download functionality. The following refinements aim to clarify its functionalities and integrate modern development practices.
 
 The core logic of dev_manager revolves around its startup mode (normal or token-based), update mechanisms, and its role in building and deploying itself and dev_automator.
 

@@ -19,8 +19,9 @@ except ImportError:
     # dotenv not available, continue without it
     pass
 
-# Handle both relative and absolute imports
+# Handle both relative and absolute imports for PyInstaller compatibility
 try:
+    # Try relative imports first (for normal Python execution)
     from .common.constants import APP_NAME, CONFIG_DIR, LOG_FILE, LOG_FORMAT, LOG_LEVEL, VERSION
     from .common.utils import ensure_directory
     from .github_client import GitHubClient
@@ -29,23 +30,43 @@ try:
         show_error_dialog,
         show_token_mode_dialog,
     )
+    from .github_settings_dialog import show_github_settings_dialog
     from .token_handler_compatible import CompatibleTokenHandler as TokenHandler
     from .updater import DevAutomatorUpdater, DevManagerUpdater
     from .installer import FirstRunInstaller, show_install_dialog
 except ImportError:
-    # Add parent directory to path for absolute imports
-    sys.path.insert(0, str(Path(__file__).parent))
-    from common.constants import APP_NAME, CONFIG_DIR, LOG_FILE, LOG_FORMAT, LOG_LEVEL, VERSION
-    from common.utils import ensure_directory
-    from github_client import GitHubClient
-    from gui import (
-        show_build_progress_dialog,
-        show_error_dialog,
-        show_token_mode_dialog,
-    )
-    from token_handler_compatible import CompatibleTokenHandler as TokenHandler
-    from updater import DevAutomatorUpdater, DevManagerUpdater
-    from installer import FirstRunInstaller, show_install_dialog
+    try:
+        # Try absolute imports with src prefix (for PyInstaller)
+        from src.common.constants import APP_NAME, CONFIG_DIR, LOG_FILE, LOG_FORMAT, LOG_LEVEL, VERSION
+        from src.common.utils import ensure_directory
+        from src.github_client import GitHubClient
+        from src.gui import (
+            show_build_progress_dialog,
+            show_error_dialog,
+            show_token_mode_dialog,
+        )
+        from src.github_settings_dialog import show_github_settings_dialog
+        from src.token_handler_compatible import CompatibleTokenHandler as TokenHandler
+        from src.updater import DevAutomatorUpdater, DevManagerUpdater
+        from src.installer import FirstRunInstaller, show_install_dialog
+    except ImportError:
+        # Final fallback - add src directory to path and import without prefix
+        src_path = Path(__file__).parent
+        if str(src_path) not in sys.path:
+            sys.path.insert(0, str(src_path))
+
+        from common.constants import APP_NAME, CONFIG_DIR, LOG_FILE, LOG_FORMAT, LOG_LEVEL, VERSION
+        from common.utils import ensure_directory
+        from github_client import GitHubClient
+        from gui import (
+            show_build_progress_dialog,
+            show_error_dialog,
+            show_token_mode_dialog,
+        )
+        from github_settings_dialog import show_github_settings_dialog
+        from token_handler_compatible import CompatibleTokenHandler as TokenHandler
+        from updater import DevAutomatorUpdater, DevManagerUpdater
+        from installer import FirstRunInstaller, show_install_dialog
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -88,6 +109,8 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
+    parser.add_argument("--test-encryption", action="store_true", help="Test encryption system and exit")
+
     parser.add_argument("--version", action="version", version=f"{APP_NAME} 0.1.0")
 
     return parser.parse_args()
@@ -122,20 +145,25 @@ def token_mode_menu() -> str:
         print("  2. 🏗️  Build and Upload DevAutomator")
         print("     └─ Compile, package, and release DevAutomator to GitHub")
         print()
-        print("  3. 🚪 Exit")
+        print("  3. ⚙️  GitHub Settings")
+        print("     └─ Configure GitHub token and settings")
+        print()
+        print("  4. 🚪 Exit")
         print("     └─ Return to normal operation")
         print()
         print("=" * 60)
 
         while True:
-            choice = input("Select option (1-3): ").strip()
+            choice = input("Select option (1-4): ").strip()
             if choice == "1":
                 return "devmanager"
             elif choice == "2":
                 return "devautomator"
             elif choice == "3":
+                return "github_settings"
+            elif choice == "4":
                 return "exit"
-            print("❌ Invalid choice. Please select 1, 2, or 3.")
+            print("❌ Invalid choice. Please select 1, 2, 3, or 4.")
 
 
 def handle_token_mode(token: str) -> int:
@@ -223,6 +251,29 @@ def handle_token_mode(token: str) -> int:
                         print(f"❌ Build failed: {build_error}")
                         return 1
 
+            elif choice == "github_settings":
+                # GitHub Settings
+                try:
+                    # Import with fallback handling
+                    try:
+                        from .github_settings_dialog import show_github_settings_dialog
+                    except ImportError:
+                        try:
+                            from src.github_settings_dialog import show_github_settings_dialog
+                        except ImportError:
+                            from github_settings_dialog import show_github_settings_dialog
+
+                    show_github_settings_dialog()
+                except Exception as e:
+                    # Fallback to console GitHub settings
+                    print(f"\n⚙️  GitHub Settings")
+                    print("=" * 50)
+                    print("⚠️  GUI not available, using console mode")
+                    print(f"Error: {e}")
+                    print("\nTo configure GitHub token manually:")
+                    print("1. Set GITHUB_TOKEN environment variable")
+                    print("2. Or use the GUI mode when available")
+
             elif choice == "exit":
                 print("Exiting...")
                 return 0
@@ -269,8 +320,14 @@ def handle_simple_mode() -> int:
         Exit code
     """
     try:
-        # Import GUI function
-        from .gui import show_normal_mode_window
+        # Import GUI function with fallback handling
+        try:
+            from .gui import show_normal_mode_window
+        except ImportError:
+            try:
+                from src.gui import show_normal_mode_window
+            except ImportError:
+                from gui import show_normal_mode_window
 
         # Show GUI and perform operations
         success = show_normal_mode_window()
@@ -295,8 +352,17 @@ def handle_simple_mode_terminal() -> int:
         Exit code
     """
     try:
-        from .updater import DevAutomatorUpdater, DevManagerUpdater
-        from .token_handler_compatible import CompatibleTokenHandler
+        # Import with fallback handling
+        try:
+            from .updater import DevAutomatorUpdater, DevManagerUpdater
+            from .token_handler_compatible import CompatibleTokenHandler
+        except ImportError:
+            try:
+                from src.updater import DevAutomatorUpdater, DevManagerUpdater
+                from src.token_handler_compatible import CompatibleTokenHandler
+            except ImportError:
+                from updater import DevAutomatorUpdater, DevManagerUpdater
+                from token_handler_compatible import CompatibleTokenHandler
 
         # Enhanced terminal UI with progress reporting
         print(f"\n{APP_NAME} v{VERSION} - Auto-Update Mode")
@@ -326,12 +392,24 @@ def handle_simple_mode_terminal() -> int:
         else:
             print("    ✅ DevManager is up to date.")
 
-        # Step 2: Check for DevAutomator updates
-        print("\n[2/3] Checking for DevAutomator updates...")
+        # Step 2: Check for DevAutomator updates or initial installation
+        print("\n[2/3] Checking for DevAutomator...")
         print("    ⏳ Connecting to GitHub...")
         devautomator_updater = DevAutomatorUpdater()
 
-        if devautomator_updater.check_for_updates():
+        # Check if DevAutomator is installed
+        if not devautomator_updater.is_devautomator_installed():
+            print("    📥 DevAutomator not found - downloading initial installation...")
+            print("    🛑 Stopping any existing DevAutomator processes...")
+            devautomator_updater.stop_devautomator()
+
+            # Download and install for the first time
+            if devautomator_updater.download_and_install_update():
+                print("    ✅ DevAutomator installed successfully.")
+            else:
+                print("    ❌ Failed to install DevAutomator")
+                return 1
+        elif devautomator_updater.check_for_updates():
             print("    ✅ DevAutomator update available!")
             print("    🛑 Stopping existing DevAutomator processes...")
 
@@ -370,6 +448,84 @@ def handle_simple_mode_terminal() -> int:
     except Exception as e:
         logging.error(f"Error in terminal mode: {e}", exc_info=True)
         print(f"\n❌ ERROR: {e}")
+        return 1
+
+
+def test_encryption_system() -> int:
+    """
+    Test the encryption system and exit.
+
+    Returns:
+        Exit code (0 if successful, 1 if failed)
+    """
+    print("🔐 Testing DevManager Encryption System")
+    print("=" * 50)
+
+    try:
+        # Test importing crypto modules
+        print("📦 Importing crypto modules...")
+        try:
+            from .common.crypto_utils import get_crypto
+            from .common.encrypted_constants import get_github_token_from_constants, get_config_from_constants
+            from .common.constants import get_bundled_github_token, has_bundled_github_token
+        except ImportError:
+            try:
+                from src.common.crypto_utils import get_crypto
+                from src.common.encrypted_constants import get_github_token_from_constants, get_config_from_constants
+                from src.common.constants import get_bundled_github_token, has_bundled_github_token
+            except ImportError:
+                from common.crypto_utils import get_crypto
+                from common.encrypted_constants import get_github_token_from_constants, get_config_from_constants
+                from common.constants import get_bundled_github_token, has_bundled_github_token
+
+        print("✅ Successfully imported encryption modules")
+
+        # Test crypto functionality
+        print("🔧 Testing encryption/decryption...")
+        crypto = get_crypto()
+        test_data = "test_encryption_in_executable"
+        encrypted = crypto.encrypt_string(test_data)
+        decrypted = crypto.decrypt_string(encrypted)
+
+        if test_data == decrypted:
+            print("✅ Encryption/decryption working correctly")
+        else:
+            print("❌ Encryption/decryption failed")
+            return 1
+
+        # Test encrypted constants access
+        print("🔑 Testing encrypted constants access...")
+        has_token = has_bundled_github_token()
+        print(f"Has bundled GitHub token: {'✅ Yes' if has_token else '❌ No'}")
+
+        if has_token:
+            token = get_bundled_github_token()
+            if token:
+                # Mask token for security
+                masked_token = f"{token[:4]}...{token[-4:]}" if len(token) > 8 else "***"
+                print(f"✅ Token retrieved: {masked_token} (length: {len(token)})")
+            else:
+                print("❌ Failed to retrieve token")
+                return 1
+
+        # Test config data access
+        print("📊 Testing config data access...")
+        config = get_config_from_constants()
+        if config:
+            print(f"✅ Config data retrieved: {len(config)} items")
+            for key in config.keys():
+                print(f"  - {key}")
+        else:
+            print("⚠️  No config data available")
+
+        print("\n" + "=" * 50)
+        print("🎉 All encryption tests passed!")
+        return 0
+
+    except Exception as e:
+        print(f"❌ Encryption test failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 
@@ -447,6 +603,10 @@ def main() -> int:
     logging.info(f"Starting {APP_NAME} v0.1.0")
 
     try:
+        # Check for test mode first
+        if args.test_encryption:
+            return test_encryption_system()
+
         # Check for first-run installation (only in simple mode)
         if not args.token:
             install_result = handle_first_run_installation()

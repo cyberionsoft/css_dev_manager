@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Configuration - these will be set by the build system
 DEVAUTOMATOR_PATH = os.environ.get('DEVAUTOMATOR_PATH', '.')
-VERSION = os.environ.get('BUILD_VERSION', '0.1.0')
+VERSION = os.environ.get('BUILD_VERSION', '0.1.1')
 PLATFORM = os.environ.get('TARGET_PLATFORM', 'windows')
 
 # Convert to Path objects
@@ -42,10 +42,10 @@ print(f"Platform: {PLATFORM}")
 # Data files to include
 datas = []
 
-# Include Jinja2 templates if they exist
-templates_dir = devautomator_path / 'templates'
+# Include Templates directory (case-sensitive)
+templates_dir = devautomator_path / 'Templates'
 if templates_dir.exists():
-    datas.append((str(templates_dir), 'templates'))
+    datas.append((str(templates_dir), 'Templates'))
 
 # Include static files if they exist
 static_dir = devautomator_path / 'static'
@@ -138,17 +138,21 @@ a = Analysis(
 # Remove duplicate entries
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
-# Create executable
+# Create single executable (onefile mode)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='devautomator',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=console,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -158,23 +162,11 @@ exe = EXE(
     icon=icon,
 )
 
-# Create distribution directory
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='devautomator',
-)
-
 # Platform-specific bundle creation
 if PLATFORM in ['darwin', 'macos']:
     # Create macOS app bundle
     app = BUNDLE(
-        coll,
+        exe,
         name='DevAutomator.app',
         icon=icon,
         bundle_identifier='com.css.devautomator',

@@ -3,7 +3,6 @@ GitHub client for building and releasing DevManager and DevAutomator.
 """
 
 import logging
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,12 +10,12 @@ from pathlib import Path
 from github import Github, GithubException
 
 try:
-    from .common.constants import VERSION, CURRENT_PLATFORM, SUPPORTED_PLATFORMS
+    from .common.constants import VERSION
 except ImportError:
     # Fallback for direct execution
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
-    from common.constants import VERSION, CURRENT_PLATFORM, SUPPORTED_PLATFORMS
+    from common.constants import VERSION
 
 # GitHub Configuration
 GITHUB_CONFIG = {
@@ -31,20 +30,22 @@ GITHUB_CONFIG = {
     },
     "release_format": "v{version}",
     "asset_naming": {
-        "devmanager": "dev_manager_{platform}.zip",
-        "devautomator": "dev_automator_{platform}.zip"
+        "devmanager": "DevManager_v{version}_{platform}.zip",
+        "devautomator": "DevAutomator_v{version}_{platform}.zip"
     }
 }
 
 try:
     from .common.constants import VERSION
     from .common.utils import get_platform_info
+    from .secure_config import get_secure_config
 except ImportError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent))
     from common.constants import VERSION
     from common.utils import get_platform_info
+    from secure_config import get_secure_config
 
 
 class GitHubClient:
@@ -54,10 +55,14 @@ class GitHubClient:
 
     def __init__(self):
         """Initialize the GitHub client."""
-        # Use provided token or environment variable
-        self.github_token = os.environ.get("GITHUB_TOKEN")
+        # Get token with multiple fallback sources:
+        # 1. Bundled encrypted constants (highest priority)
+        # 2. Secure config storage
+        # 3. Environment variable (lowest priority)
+        self.github_token = self._get_github_token_with_fallbacks()
+
         if not self.github_token:
-            raise ValueError("GITHUB_TOKEN environment variable is required")
+            raise ValueError("GitHub token not configured. Please configure it in GitHub Settings or use the encryption utility.")
 
         self.github = Github(self.github_token)
         self.platform_info = get_platform_info()
@@ -65,6 +70,49 @@ class GitHubClient:
 
         # Test connection on initialization
         self._test_connection()
+
+    def _get_github_token_with_fallbacks(self) -> str:
+        """
+        Get GitHub token with multiple fallback sources.
+
+        Returns:
+            GitHub token from the first available source
+        """
+        import logging
+
+        # 1. Try bundled encrypted constants first (highest priority)
+        try:
+            from .common.constants import get_bundled_github_token
+            token = get_bundled_github_token()
+            if token:
+                logging.info("Using GitHub token from bundled encrypted constants")
+                return token
+        except Exception as e:
+            logging.debug(f"Could not get token from bundled constants: {e}")
+
+        # 2. Try secure config storage
+        try:
+            secure_config = get_secure_config()
+            token = secure_config.get_github_token()
+            if token:
+                logging.info("Using GitHub token from secure config storage")
+                return token
+        except Exception as e:
+            logging.debug(f"Could not get token from secure config: {e}")
+
+        # 3. Try environment variable (lowest priority)
+        try:
+            import os
+            token = os.environ.get("GITHUB_TOKEN")
+            if token:
+                logging.info("Using GitHub token from environment variable")
+                return token
+        except Exception as e:
+            logging.debug(f"Could not get token from environment: {e}")
+
+        # No token found
+        logging.warning("No GitHub token found in any source")
+        return None
 
     def build_and_release_devmanager(self) -> bool:
         """
@@ -112,8 +160,8 @@ class GitHubClient:
                 print(f"    ✅ Created new release: {release_tag}")
                 logging.info(f"Created new release: {release_tag}")
 
-            # Upload asset
-            asset_name = f"devmanager_{self.platform_info['platform_key']}.zip"
+            # Upload asset with new naming convention
+            asset_name = f"DevManager_v{VERSION}_{self.platform_info['platform_key']}.zip"
             print(f"    📤 Uploading asset: {asset_name}")
 
             # Get file size for progress reporting
@@ -207,8 +255,8 @@ class GitHubClient:
                 print(f"    ✅ Created new release: {release_tag}")
                 logging.info(f"Created new release: {release_tag}")
 
-            # Upload asset
-            asset_name = f"devautomator_{self.platform_info['platform_key']}.zip"
+            # Upload asset with consistent naming convention
+            asset_name = f"DevAutomator_v{VERSION}_{self.platform_info['platform_key']}.zip"
             print(f"    📤 Uploading asset: {asset_name}")
 
             # Get file size for progress reporting
@@ -357,7 +405,7 @@ class GitHubClient:
 
                 zip_path = (
                     Path(temp_dir)
-                    / f"devmanager_{self.platform_info['platform_key']}.zip"
+                    / f"DevManager_v{VERSION}_{self.platform_info['platform_key']}.zip"
                 )
 
                 print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
@@ -508,7 +556,7 @@ class GitHubClient:
 
                 zip_path = (
                     Path(temp_dir)
-                    / f"devautomator_{self.platform_info['platform_key']}.zip"
+                    / f"DevAutomator_v{VERSION}_{self.platform_info['platform_key']}.zip"
                 )
 
                 print(f"    🗜️  Creating ZIP archive: {zip_path.name}")
@@ -627,6 +675,192 @@ class GitHubClient:
 
         except Exception as e:
             return {"error": str(e)}
+
+    def create_single_executable_release(self, app_name: str, exe_path: str, version: str = None) -> bool:
+        """
+        Create a GitHub release for a single executable.
+
+        Args:
+            app_name: Application name ('devmanager' or 'devautomator')
+            exe_path: Path to the executable file
+            version: Version string (defaults to current VERSION)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if version is None:
+                version = VERSION
+
+            print(f"🚀 Creating single executable release for {app_name.title()}")
+
+            # Validate inputs
+            exe_file = Path(exe_path)
+            if not exe_file.exists():
+                print(f"❌ Executable not found: {exe_path}")
+                return False
+
+            repo_name = self.config['repos'].get(app_name)
+            if not repo_name:
+                print(f"❌ Unknown application: {app_name}")
+                return False
+
+            # Get repository
+            repo = self.github.get_repo(f"{self.config['owner']}/{repo_name}")
+            print(f"📋 Repository: {repo.full_name}")
+
+            # Create ZIP package
+            print("📦 Creating ZIP package...")
+            with tempfile.TemporaryDirectory() as temp_dir:
+                asset_name = self.config['asset_naming'][app_name].format(
+                    version=version,
+                    platform=self.platform_info['platform_key']
+                )
+                zip_path = Path(temp_dir) / asset_name
+
+                if not self._create_single_exe_package(exe_file, zip_path, app_name, version):
+                    return False
+
+                # Create release
+                release_tag = f"v{version}"
+                release_name = f"{app_name.title()} v{version}"
+                release_notes = self._generate_single_exe_release_notes(app_name, version, exe_file)
+
+                try:
+                    # Check if release already exists
+                    release = repo.get_release(release_tag)
+                    print(f"🔄 Release {release_tag} already exists, updating...")
+                except GithubException:
+                    # Create new release
+                    print(f"🆕 Creating new release: {release_tag}")
+                    release = repo.create_git_release(
+                        tag=release_tag,
+                        name=release_name,
+                        message=release_notes,
+                        draft=False,
+                        prerelease=False,
+                    )
+                    print(f"✅ Created release: {release.html_url}")
+
+                # Remove existing asset if it exists
+                print("🔍 Checking for existing assets...")
+                for asset in release.get_assets():
+                    if asset.name == asset_name:
+                        print(f"🗑️ Removing existing asset: {asset.name}")
+                        asset.delete_asset()
+                        break
+
+                # Upload new asset
+                print(f"📤 Uploading asset: {asset_name}")
+                file_size_mb = zip_path.stat().st_size / (1024 * 1024)
+                print(f"📊 File size: {file_size_mb:.1f} MB")
+
+                asset = release.upload_asset(
+                    path=str(zip_path),
+                    name=asset_name,
+                    content_type="application/zip"
+                )
+
+                print(f"✅ Asset uploaded: {asset.browser_download_url}")
+                print(f"🌐 Release URL: {release.html_url}")
+
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to create single executable release: {e}")
+            logging.error(f"Single executable release failed: {e}", exc_info=True)
+            return False
+
+    def _create_single_exe_package(self, exe_path: Path, zip_path: Path, app_name: str, version: str) -> bool:
+        """Create a ZIP package containing the single executable and metadata."""
+        try:
+            import zipfile
+            from datetime import datetime
+
+            print(f"📦 Creating ZIP package: {zip_path.name}")
+
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add the executable
+                zipf.write(exe_path, exe_path.name)
+
+                # Create and add README
+                readme_content = f"""# {app_name.title()} v{version}
+
+## Single Executable Release
+
+This package contains a single executable file for {app_name.title()} v{version}.
+
+### Installation
+1. Extract the ZIP file
+2. Run the executable directly - no installation required
+3. For DevManager: Can be run in normal mode (double-click) or with token
+4. For DevAutomator: Requires token parameter from DevManager
+
+### File Information
+- **Executable**: {exe_path.name}
+- **Version**: {version}
+- **Platform**: Windows 64-bit
+- **Build Date**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- **Size**: {exe_path.stat().st_size / (1024*1024):.1f} MB
+
+### Features
+- Single executable - no dependencies required
+- All resources embedded
+- Cross-platform compatible
+- Optimized for performance
+
+### Support
+For issues and documentation, visit:
+https://github.com/{self.config['owner']}/{self.config['repos'][app_name]}
+"""
+
+                # Add README to ZIP
+                zipf.writestr("README.md", readme_content)
+
+            print(f"✅ ZIP package created: {zip_path}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to create ZIP package: {e}")
+            return False
+
+    def _generate_single_exe_release_notes(self, app_name: str, version: str, exe_path: Path) -> str:
+        """Generate release notes for single executable release."""
+        from datetime import datetime
+
+        return f"""# {app_name.title()} v{version} - Single Executable Release
+
+## 🎉 New Features
+- **Single Executable**: No more multiple files and folders - just one .exe file!
+- **Embedded Resources**: All templates, configs, and assets are embedded
+- **Simplified Deployment**: Easy installation and distribution
+- **Optimized Performance**: Faster startup and reduced disk footprint
+
+## 📦 What's Included
+- Single executable file ({exe_path.stat().st_size / (1024*1024):.1f} MB)
+- All functionality preserved from previous versions
+- Cross-environment compatibility (development and production)
+
+## 🔧 Technical Improvements
+- PyInstaller onefile mode implementation
+- Resource path handling for embedded files
+- Optimized dependency management
+- Reduced package size
+
+## 📥 Installation
+1. Download the ZIP file from the assets below
+2. Extract the executable
+3. Run directly - no installation required!
+
+## 🔗 Related Projects
+- DevManager: https://github.com/{self.config['owner']}/css_dev_manager
+- DevAutomator: https://github.com/{self.config['owner']}/css_dev_automator
+
+---
+**Build Date**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Platform**: Windows 64-bit
+**Version**: {version}
+"""
 
     def get_repository(self, repo_name: str):
         """

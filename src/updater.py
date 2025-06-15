@@ -124,16 +124,21 @@ class BaseUpdater:
 
                 # Find the asset for current platform
                 platform_key = self.platform_info.get("platform_key", CURRENT_PLATFORM)
-                asset_name = f"{self.app_name.lower()}_{platform_key}.zip"
+                # Use consistent naming convention: AppName_vVersion_Platform.zip
+                asset_name = f"{self.app_name}_v{version_tag}_{platform_key}.zip"
 
                 download_url = None
+                available_assets = []
                 for asset in assets:
+                    available_assets.append(asset["name"])
                     if asset["name"] == asset_name:
                         download_url = asset["browser_download_url"]
                         break
 
                 if not download_url:
                     logging.error(f"No asset found for platform: {platform_key}")
+                    logging.error(f"Looking for: {asset_name}")
+                    logging.error(f"Available assets: {available_assets}")
                     return None
 
                 # Download the file
@@ -341,6 +346,16 @@ class DevAutomatorUpdater(BaseUpdater):
         super().__init__("DevAutomator", DEVAUTOMATOR_REPO_NAME)
         self.install_dir = DEVAUTOMATOR_INSTALL_DIR
         self.exe_name = f"DevAutomator{self.platform_info.get('executable_ext', '')}"
+
+    def is_devautomator_installed(self) -> bool:
+        """
+        Check if DevAutomator is installed.
+
+        Returns:
+            True if DevAutomator executable exists, False otherwise
+        """
+        exe_path = self.install_dir / self.exe_name
+        return exe_path.exists()
 
     def download_and_install_update(self) -> bool:
         """

@@ -70,6 +70,14 @@ class TokenModeDialog(QDialog):
         )
         options_layout.addWidget(self.build_devautomator_btn)
 
+        # GitHub Settings button
+        self.github_settings_btn = QPushButton("GitHub Settings")
+        self.github_settings_btn.setMinimumHeight(40)
+        self.github_settings_btn.clicked.connect(
+            lambda: self._select_option("github_settings")
+        )
+        options_layout.addWidget(self.github_settings_btn)
+
         layout.addWidget(options_group)
 
         layout.addSpacing(20)
@@ -372,8 +380,9 @@ class BuildWorker(QThread):
                 self.emit_status(f"⏱️  Build in progress... ({elapsed}s elapsed)")
                 self.progress_updated.emit(i + 1, 5)
 
-            # Call actual build method
-            success = self.github_client.build_and_release_devmanager()
+            # Call new single executable release method
+            devmanager_exe = "dist/DevManager.exe"
+            success = self.github_client.create_single_executable_release("devmanager", devmanager_exe)
 
             if success:
                 self.emit_status("✅ DevManager built successfully!")
@@ -411,8 +420,9 @@ class BuildWorker(QThread):
                 self.emit_status(f"⏱️  Build in progress... ({elapsed}s elapsed)")
                 self.progress_updated.emit(i + 1, 5)
 
-            # Call actual build method
-            success = self.github_client.build_and_release_devautomator()
+            # Call new single executable release method
+            devautomator_exe = "P:/Repositories/css_dev_automator/dist/DevAutomator.exe"
+            success = self.github_client.create_single_executable_release("devautomator", devautomator_exe)
 
             if success:
                 self.emit_status("✅ DevAutomator built successfully!")
@@ -472,13 +482,26 @@ class NormalModeWorker(QThread):
             else:
                 self.emit_status("✅ DevManager is up to date.")
 
-            # Step 2: Check for DevAutomator updates
-            self.emit_status("🔍 Checking for DevAutomator updates...")
+            # Step 2: Check for DevAutomator updates or initial installation
+            self.emit_status("🔍 Checking for DevAutomator...")
             self.progress_updated.emit(2)
 
             devautomator_updater = DevAutomatorUpdater()
 
-            if devautomator_updater.check_for_updates():
+            # Check if DevAutomator is installed
+            if not devautomator_updater.is_devautomator_installed():
+                self.emit_status("📥 DevAutomator not found - downloading initial installation...")
+                self.emit_status("🛑 Stopping any existing DevAutomator processes...")
+                devautomator_updater.stop_devautomator()
+
+                # Download and install for the first time
+                if devautomator_updater.download_and_install_update():
+                    self.emit_status("✅ DevAutomator installed successfully.")
+                else:
+                    self.emit_status("❌ Failed to install DevAutomator")
+                    self.finished.emit(False, "DevAutomator installation failed")
+                    return
+            elif devautomator_updater.check_for_updates():
                 self.emit_status("✅ DevAutomator update available!")
                 self.emit_status("🛑 Stopping existing DevAutomator processes...")
 

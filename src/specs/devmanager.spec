@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-VERSION = os.environ.get('BUILD_VERSION', '0.1.0')
+VERSION = os.environ.get('BUILD_VERSION', '0.1.1')
 PLATFORM = os.environ.get('TARGET_PLATFORM', 'windows')
 
 # Paths
@@ -28,6 +28,16 @@ print(f"Platform: {PLATFORM}")
 # Data files to include
 datas = []
 
+# Include .env file for configuration (without sensitive data)
+env_file = devmanager_root / '.env'
+if env_file.exists():
+    datas.append((str(env_file), '.'))
+
+# Include .env.example for reference
+env_example_file = devmanager_root / '.env.example'
+if env_example_file.exists():
+    datas.append((str(env_example_file), '.'))
+
 # Include any configuration templates
 config_dir = devmanager_root / 'src' / 'config'
 if config_dir.exists():
@@ -38,37 +48,47 @@ if config_dir.exists():
 hiddenimports = [
     # PySide6 modules
     'PySide6.QtCore',
-    'PySide6.QtWidgets', 
+    'PySide6.QtWidgets',
     'PySide6.QtGui',
-    
+
     # HTTP client
     'httpx',
     'httpx._client',
     'httpx._config',
     'httpx._models',
     'httpx._transports',
-    
+
     # GitHub API
     'github',
     'github.Repository',
     'github.GitRelease',
-    
+
     # Packaging
     'packaging.version',
     'packaging.specifiers',
     'packaging.requirements',
-    
+
     # YAML support
     'yaml',
     'yaml.loader',
     'yaml.dumper',
-    
-    # Crypto
+
+    # Crypto and encryption modules
     'cryptography',
     'cryptography.fernet',
-    
+    'cryptography.hazmat.primitives',
+    'cryptography.hazmat.primitives.hashes',
+    'cryptography.hazmat.primitives.kdf.pbkdf2',
+
+    # DevManager encryption modules
+    'src.common.crypto_utils',
+    'src.common.encrypted_constants',
+
+    # JWT support
+    'jwt',
+    'jwt.algorithms',
+
     # Standard library modules that might be missed
-    'pkg_resources.py2_warn',
     'zipfile',
     'hashlib',
     'json',
@@ -76,15 +96,12 @@ hiddenimports = [
     'subprocess',
     'threading',
     'logging.handlers',
+    'base64',
 
-    # Fix for jaraco.text and related dependencies
-    'jaraco.text',
-    'jaraco.functools',
-    'jaraco.context',
-    'jaraco.collections',
-    'more_itertools',
-    'importlib_metadata',
-    'zipp',
+    # Essential setuptools dependencies only
+    'setuptools._vendor.jaraco.text',
+    'setuptools._vendor.jaraco.functools',
+    'setuptools._vendor.jaraco.context',
 ]
 
 # Platform-specific settings
@@ -132,8 +149,6 @@ a = Analysis(
         'notebook',
         'sphinx',
         'pytest',
-        'setuptools',
-        'distutils',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -144,17 +159,21 @@ a = Analysis(
 # Remove duplicate entries and optimize
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
-# Create executable
+# Create single executable (onefile mode)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='devmanager',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=console,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -164,23 +183,11 @@ exe = EXE(
     icon=icon,
 )
 
-# Create distribution directory
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='devmanager',
-)
-
 # Platform-specific bundle creation
 if PLATFORM in ['darwin', 'macos']:
     # Create macOS app bundle
     app = BUNDLE(
-        coll,
+        exe,
         name='DevManager.app',
         icon=icon,
         bundle_identifier='com.css.devmanager',

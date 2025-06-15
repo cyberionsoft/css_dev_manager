@@ -98,7 +98,7 @@ SPEC_DIR = Path("src") / "specs"
 
 # PyInstaller Configuration
 PYINSTALLER_OPTIONS = {
-    "onedir": True,
+    "onefile": True,  # Changed to onefile mode for single executable
     "windowed": False,  # Set to True for GUI-only applications
     "clean": True,
     "noconfirm": True,
@@ -127,3 +127,46 @@ UNINSTALL_KEY = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DevManager
 START_MENU_FOLDER = "CSS Development"
 DESKTOP_SHORTCUT_NAME = "DevManager.lnk"
 START_MENU_SHORTCUT_NAME = "DevManager.lnk"
+
+# Encrypted Constants Access
+# These functions provide access to encrypted sensitive data bundled with the application
+def get_bundled_github_token():
+    """
+    Get GitHub token from encrypted constants bundled with the application.
+
+    Returns:
+        Decrypted GitHub token or None if not available
+    """
+    try:
+        from .encrypted_constants import get_github_token_from_constants
+        return get_github_token_from_constants()
+    except ImportError:
+        return None
+
+
+def get_bundled_config_data():
+    """
+    Get additional configuration data from encrypted constants.
+
+    Returns:
+        Decrypted configuration dictionary or None if not available
+    """
+    try:
+        from .encrypted_constants import get_config_from_constants
+        return get_config_from_constants()
+    except ImportError:
+        return None
+
+
+def has_bundled_github_token():
+    """
+    Check if a GitHub token is available in bundled encrypted constants.
+
+    Returns:
+        True if token is available and can be decrypted
+    """
+    try:
+        from .encrypted_constants import has_encrypted_github_token
+        return has_encrypted_github_token()
+    except ImportError:
+        return False
